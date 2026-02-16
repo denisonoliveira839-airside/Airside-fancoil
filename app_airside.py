@@ -57,6 +57,14 @@ with tab1:
     st.subheader("🔧 Dados Técnicos")
 
     vazao = st.number_input("Vazão (m³/h)", min_value=100.0, step=100.0)
+pressao_total = st.number_input(
+    "Pressão Total do Sistema (Pa)",
+    min_value=100,
+    value=500,
+    step=50
+)
+
+tensao = st.selectbox("Tensão de Alimentação (V)", ["220", "380"])
     tensao = st.selectbox("Tensão de Alimentação (V)", ["220", "380"])
     pot_banco = st.number_input("Potência Banco de Resistência (kW)", min_value=0.0, step=1.0)
 
@@ -64,7 +72,11 @@ with tab1:
 
     if gerar:
 
-        motor, partida, corrente, disj_motor, cabo_motor = calcular_motor(vazao, tensao)
+        motor, partida, corrente, disj_motor, cabo_motor = calcular_motor(
+    vazao,
+    tensao,
+    pressao_total
+)
 
         if pot_banco > 0:
             corrente_banco, disj_banco = calcular_disjuntor_cabo(pot_banco, tensao)
