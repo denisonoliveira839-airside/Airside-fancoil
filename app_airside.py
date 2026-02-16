@@ -1,3 +1,4 @@
+
 # app_airside.py
 import streamlit as st
 from datetime import datetime
@@ -5,10 +6,17 @@ from calculos import calcular_motor, calcular_disjuntor_cabo
 from gerador_pdf import gerar_pdf
 from gerador_multifilar import gerar_multifilar
 
-st.set_page_config(page_title="Projeto Executivo Fancoil", layout="centered")
+# =============================
+# CONFIGURAÇÃO DA PÁGINA
+# =============================
+
+st.set_page_config(
+    page_title="Projeto Executivo Fancoil",
+    layout="wide"
+)
 
 # =============================
-# CABEÇALHO PROFISSIONAL
+# CABEÇALHO
 # =============================
 
 st.markdown("""
@@ -17,81 +25,147 @@ st.markdown("""
 ---
 """)
 
-col1, col2 = st.columns(2)
-
-with col1:
-    cliente = st.text_input("Nome do Cliente")
-    engenheiro = st.text_input("Responsável Técnico")
-
-with col2:
-    revisao = st.text_input("Número da Revisão", value="REV-00")
-    data_atual = datetime.now().strftime("%d/%m/%Y")
-    st.write(f"📅 Data: {data_atual}")
-
-st.divider()
-
 # =============================
-# ENTRADAS TÉCNICAS
+# ABAS PRINCIPAIS
 # =============================
 
-st.subheader("🔧 Dados Técnicos")
-
-vazao = st.number_input("Vazão (m³/h)", min_value=100.0, step=100.0)
-tensao = st.selectbox("Tensão de Alimentação (V)", ["220", "380"])
-pot_banco = st.number_input("Potência Banco de Resistência (kW)", min_value=0.0, step=1.0)
-
-st.divider()
+tab1, tab2, tab3 = st.tabs([
+    "🔧 Dimensionamento",
+    "🤖 Automação",
+    "📄 Relatório"
+])
 
 # =============================
-# GERAR PROJETO
+# ABA 1 — DIMENSIONAMENTO
 # =============================
 
-if st.button("⚡ Gerar Projeto Executivo Completo"):
+with tab1:
 
-    motor, partida, corrente, disj_motor, cabo_motor = calcular_motor(vazao, tensao)
+    col1, col2 = st.columns(2)
 
-    if pot_banco > 0:
-        corrente_banco, disj_banco = calcular_disjuntor_cabo(pot_banco, tensao)
-    else:
-        corrente_banco, disj_banco = 0, 0
+    with col1:
+        cliente = st.text_input("Nome do Cliente")
+        engenheiro = st.text_input("Responsável Técnico")
 
-    st.success("Projeto Gerado com Sucesso!")
+    with col2:
+        revisao = st.text_input("Número da Revisão", value="REV-00")
+        data_atual = datetime.now().strftime("%d/%m/%Y")
+        st.write(f"📅 Data: {data_atual}")
 
-    st.subheader("📊 Dimensionamento do Motor")
+    st.divider()
+
+    st.subheader("🔧 Dados Técnicos")
+
+    vazao = st.number_input("Vazão (m³/h)", min_value=100.0, step=100.0)
+    tensao = st.selectbox("Tensão de Alimentação (V)", ["220", "380"])
+    pot_banco = st.number_input("Potência Banco de Resistência (kW)", min_value=0.0, step=1.0)
+
+    gerar = st.button("⚡ Gerar Projeto Executivo Completo")
+
+    if gerar:
+
+        motor, partida, corrente, disj_motor, cabo_motor = calcular_motor(vazao, tensao)
+
+        if pot_banco > 0:
+            corrente_banco, disj_banco = calcular_disjuntor_cabo(pot_banco, tensao)
+        else:
+            corrente_banco, disj_banco = 0, 0
+
+        # Guardando dados na sessão
+        st.session_state["dados_projeto"] = {
+            "cliente": cliente,
+            "engenheiro": engenheiro,
+            "revisao": revisao,
+            "data": data_atual,
+            "vazao": vazao,
+            "tensao": tensao,
+            "motor": motor,
+            "partida": partida,
+            "corrente": corrente,
+            "disj_motor": disj_motor,
+            "cabo_motor": cabo_motor,
+            "pot_banco": pot_banco,
+            "corrente_banco": corrente_banco,
+            "disj_banco": disj_banco
+        }
+
+        st.success("Projeto Gerado com Sucesso!")
+
+# =============================
+# ABA 2 — AUTOMAÇÃO
+# =============================
+
+with tab2:
+
+    st.subheader("🤖 Lógica de Automação")
+
+    tipo_filtro = st.selectbox("Tipo de Filtro", ["G4", "F7", "HEPA"])
+    sensor_pressao = st.selectbox("Sensor de Pressão Diferencial", ["Sim", "Não"])
+    controle = st.selectbox("Controle de Motor", ["Contator", "Inversor de Frequência"])
 
     st.info(f"""
-    **Cliente:** {cliente}  
-    **Responsável:** {engenheiro}  
-    **Revisão:** {revisao}  
-    **Data:** {data_atual}
+    **Configuração Selecionada:**
+
+    - Filtro: {tipo_filtro}  
+    - Sensor ΔP: {sensor_pressao}  
+    - Tipo de Controle: {controle}
     """)
 
-    st.write(f"**Potência do Motor:** {motor} CV")
-    st.write(f"**Tipo de Partida:** {partida}")
-    st.write(f"**Corrente Nominal:** {corrente} A")
-    st.write(f"**Disjuntor do Motor:** {disj_motor} A")
-    st.write(f"**Cabo do Motor:** {cabo_motor} mm²")
+# =============================
+# ABA 3 — RELATÓRIO
+# =============================
 
-    if pot_banco > 0:
-        st.subheader("🔥 Banco de Resistência")
-        st.write(f"Potência Total: {pot_banco} kW")
-        st.write(f"Corrente Banco: {corrente_banco} A")
-        st.write(f"Disjuntor Banco: {disj_banco} A")
+with tab3:
 
-    gerar_pdf(vazao, tensao, motor, partida, corrente, disj_motor,
-              cabo_motor, pot_banco, corrente_banco, disj_banco)
+    st.subheader("📄 Geração de Relatórios")
 
-    gerar_multifilar(vazao, tensao, motor, partida, pot_banco)
+    if "dados_projeto" in st.session_state:
 
-    with open("Projeto_Executivo_Fancoil_FINAL.pdf", "rb") as file:
-        st.download_button("📄 Baixar Projeto em PDF",
-                           file,
-                           file_name="Projeto_Executivo_Fancoil.pdf")
+        dados = st.session_state["dados_projeto"]
 
-    with open("Multifilar_Fancoil.png", "rb") as file:
-        st.download_button("🖼️ Baixar Diagrama Multifilar",
-                           file,
-                           file_name="Multifilar_Fancoil.png")
+        st.write("### 📊 Resumo do Projeto")
+        st.write(f"Cliente: {dados['cliente']}")
+        st.write(f"Motor: {dados['motor']} CV")
+        st.write(f"Corrente: {dados['corrente']} A")
+        st.write(f"Disjuntor: {dados['disj_motor']} A")
+
+        gerar_pdf(
+            dados["vazao"],
+            dados["tensao"],
+            dados["motor"],
+            dados["partida"],
+            dados["corrente"],
+            dados["disj_motor"],
+            dados["cabo_motor"],
+            dados["pot_banco"],
+            dados["corrente_banco"],
+            dados["disj_banco"]
+        )
+
+        gerar_multifilar(
+            dados["vazao"],
+            dados["tensao"],
+            dados["motor"],
+            dados["partida"],
+            dados["pot_banco"]
+        )
+
+        with open("Projeto_Executivo_Fancoil_FINAL.pdf", "rb") as file:
+            st.download_button(
+                "📄 Baixar Projeto em PDF",
+                file,
+                file_name="Projeto_Executivo_Fancoil.pdf"
+            )
+
+        with open("Multifilar_Fancoil.png", "rb") as file:
+            st.download_button(
+                "🖼️ Baixar Diagrama Multifilar",
+                file,
+                file_name="Multifilar_Fancoil.png"
+            )
+
+    else:
+        st.warning("⚠️ Gere o projeto na aba Dimensionamento primeiro.")
 
 st.markdown("---")
 st.caption("Sistema Técnico Automatizado | Engenharia HVAC | Versão Corporativa")
