@@ -1,37 +1,89 @@
 # calculos.py
 import math
 
-def calcular_motor(vazao, tensao):
+def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     """
-    Calcula potência do motor, corrente, disjuntor e cabo
-    """
-    # Fórmula simplificada para dimensionamento de motor
-    fator_seguranca = 1.25
-    potencia_calc = vazao / 2649  # Ex.: m³/h para CV aproximado
-    potencia_motor = math.ceil(potencia_calc * fator_seguranca / 1) * 1  # Arredonda para CV inteiro
+    Dimensionamento técnico de motor para ventilador (Fancoil)
 
-    # Determinar tipo de partida
+    vazao: m³/h
+    tensao: "220" ou "380"
+    pressao_total: Pa (default 500 Pa típico Fancoil)
+    rendimento: eficiência do conjunto ventilador
+    """
+
+    # =============================
+    # POTÊNCIA REAL (kW)
+    # =============================
+
+    potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
+
+    # Margem técnica 15%
+    potencia_kw *= 1.15
+
+    # Converter para CV
+    potencia_cv = potencia_kw / 0.736
+
+    # Arredondar para motor comercial inteiro
+    potencia_motor = math.ceil(potencia_cv)
+
+    # =============================
+    # TIPO DE PARTIDA
+    # =============================
+
     if potencia_motor <= 5:
         partida = "Direta"
-    else:
+    elif potencia_motor <= 15:
         partida = "Estrela-Triângulo"
+    else:
+        partida = "Soft-Starter ou Inversor"
 
-    # Corrente aproximada
-    if tensao == "220":
-        corrente = round((potencia_motor * 746) / 220 * 1.1, 2)
-    else:  # 380V
-        corrente = round((potencia_motor * 746) / 380 * 1.1, 2)
+    # =============================
+    # CORRENTE TRIFÁSICA REAL
+    # =============================
 
-    # Disjuntor e cabo
-    disj_motor = round(corrente * 1.2)
-    cabo_motor = 2.5 if corrente <= 20 else 4
+    tensao_int = int(tensao)
+
+    corrente = round(
+        (potencia_kw * 1000) / (math.sqrt(3) * tensao_int * 0.85),
+        2
+    )
+
+    # =============================
+    # DISJUNTOR
+    # =============================
+
+    disj_motor = math.ceil(corrente * 1.25)
+
+    # =============================
+    # CABO (tabela simplificada)
+    # =============================
+
+    if corrente <= 18:
+        cabo_motor = 2.5
+    elif corrente <= 28:
+        cabo_motor = 4
+    elif corrente <= 36:
+        cabo_motor = 6
+    elif corrente <= 50:
+        cabo_motor = 10
+    else:
+        cabo_motor = 16
 
     return potencia_motor, partida, corrente, disj_motor, cabo_motor
 
+
 def calcular_disjuntor_cabo(potencia_banco, tensao):
     """
-    Calcula corrente e disjuntor do banco de resistências
+    Banco de resistência trifásico
     """
-    corrente = round((potencia_banco * 1000) / int(tensao), 2)
-    disj_banco = round(corrente * 1.2)
+
+    tensao_int = int(tensao)
+
+    corrente = round(
+        (potencia_banco * 1000) / (math.sqrt(3) * tensao_int),
+        2
+    )
+
+    disj_banco = math.ceil(corrente * 1.25)
+
     return corrente, disj_banco
