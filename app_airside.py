@@ -1,4 +1,3 @@
-
 import streamlit as st
 import math
 from datetime import datetime
@@ -18,15 +17,6 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
         pressao_total = float(pressao_total)
         rendimento = float(rendimento)
         tensao_int = int(tensao)
-
-        if vazao <= 0:
-            vazao = 100
-
-        if pressao_total <= 0:
-            pressao_total = 500
-
-        if rendimento <= 0:
-            rendimento = 0.65
 
         potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
         potencia_kw *= 1.15
@@ -59,10 +49,27 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
         return 1, 0, 10, 16, 2.5
 
 
+def gerar_lista_materiais(motor, disj_motor, disj_geral, cabo_motor):
+
+    materiais = [
+        ("Disjuntor Geral", f"{disj_geral} A", "1 un"),
+        ("Disjuntor Motor", f"{disj_motor} A", "1 un"),
+        ("Inversor de Frequência", f"{motor} CV", "1 un"),
+        ("Motor Trifásico", f"{motor} CV", "1 un"),
+        ("CLP", "Compacto 24Vcc", "1 un"),
+        ("Pressostato", "Industrial", "2 un"),
+        ("Fonte 24Vcc", "2A ou superior", "1 un"),
+        ("Cabo de Potência", f"{cabo_motor} mm²", "Conforme projeto"),
+        ("Cabos de Comando", "1,5 mm²", "Conforme projeto"),
+        ("Bornes e trilho DIN", "-", "Conforme necessidade"),
+        ("Painel metálico", "IP54 ou superior", "1 un"),
+    ]
+
+    return materiais
+
+
 def gerar_unifilar(tensao, disj_geral, disj_motor, motor, cliente, tecnico):
-
     data = datetime.now().strftime("%d/%m/%Y")
-
     return f"""
 ==============================
       DIAGRAMA UNIFILAR
@@ -85,9 +92,7 @@ REDE TRIFÁSICA {tensao}V
 
 
 def gerar_multifilar(tensao, motor, corrente, cliente, tecnico):
-
     data = datetime.now().strftime("%d/%m/%Y")
-
     return f"""
 ==========================================
           DIAGRAMA MULTIFILAR
@@ -119,11 +124,10 @@ Fonte 24Vcc
 # ABAS
 # =====================================================
 
-aba1, aba2, aba3 = st.tabs(["📋 Dados", "📊 Resultado", "📑 Diagramas"])
+aba1, aba2, aba3, aba4 = st.tabs(
+    ["📋 Dados", "📊 Resultado", "📑 Diagramas", "📦 Lista de Materiais"]
+)
 
-# =========================
-# ABA 1 - DADOS
-# =========================
 with aba1:
 
     cliente = st.text_input("Nome do Cliente")
@@ -135,10 +139,6 @@ with aba1:
 
     calcular = st.button("🔎 Calcular Sistema")
 
-
-# =========================
-# PROCESSAMENTO
-# =========================
 if "resultado" not in st.session_state:
     st.session_state.resultado = None
 
@@ -149,9 +149,6 @@ if calcular:
     st.session_state.tensao = tensao
 
 
-# =========================
-# ABA 2 - RESULTADO
-# =========================
 with aba2:
 
     if st.session_state.resultado:
@@ -159,20 +156,17 @@ with aba2:
         motor, corrente, disj_motor, disj_geral, cabo_motor = st.session_state.resultado
 
         st.markdown("## 🔧 Resultado Técnico")
-        st.write(f"**Motor:** {motor} CV")
-        st.write(f"**Corrente:** {corrente} A")
-        st.write(f"**Disjuntor Motor:** {disj_motor} A")
-        st.write(f"**Disjuntor Geral:** {disj_geral} A")
-        st.write(f"**Cabo:** {cabo_motor} mm²")
-        st.write("**Sistema:** Inversor de Frequência")
-        st.write("**Automação:** CLP + 2 Pressostatos")
+        st.write(f"Motor: {motor} CV")
+        st.write(f"Corrente: {corrente} A")
+        st.write(f"Disjuntor Motor: {disj_motor} A")
+        st.write(f"Disjuntor Geral: {disj_geral} A")
+        st.write(f"Cabo: {cabo_motor} mm²")
+        st.write("Sistema: Inversor de Frequência")
+        st.write("Automação: CLP + 2 Pressostatos")
     else:
-        st.info("Preencha os dados na aba 'Dados' e clique em Calcular.")
+        st.info("Calcule o sistema na aba Dados.")
 
 
-# =========================
-# ABA 3 - DIAGRAMAS
-# =========================
 with aba3:
 
     if st.session_state.resultado:
@@ -202,4 +196,23 @@ with aba3:
             )
         )
     else:
-        st.info("Calcule o sistema primeiro.")
+        st.info("Calcule primeiro.")
+
+
+with aba4:
+
+    if st.session_state.resultado:
+
+        motor, corrente, disj_motor, disj_geral, cabo_motor = st.session_state.resultado
+
+        materiais = gerar_lista_materiais(
+            motor, disj_motor, disj_geral, cabo_motor
+        )
+
+        st.markdown("## 📦 Lista de Materiais")
+
+        for item in materiais:
+            st.write(f"- {item[0]} | {item[1]} | {item[2]}")
+
+    else:
+        st.info("Calcule o sistema para gerar a lista.")
