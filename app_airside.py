@@ -1,51 +1,81 @@
 import streamlit as st
 import math
+from datetime import datetime
 
 st.set_page_config(page_title="AirSide - Ventilação Industrial", layout="centered")
 
 st.title("🌀 AirSide - Dimensionamento Elétrico de Ventiladores")
 
-# =========================
-# DIAGRAMA UNIFILAR
-# =========================
+# =====================================================
+# FUNÇÃO DIAGRAMA UNIFILAR
+# =====================================================
 def gerar_diagrama_unifilar(tensao, disj_geral, disj_motor, motor):
+
+    data = datetime.now().strftime("%d/%m/%Y")
+
     return f"""
-REDE {tensao}V
-   │
-   ├── Disjuntor Geral {disj_geral}A
-   │
-   ├── Inversor de Frequência
-   │
-   ├── Disjuntor Motor {disj_motor}A
-   │
-   └── Motor {motor} CV
+==============================
+      DIAGRAMA UNIFILAR
+      AirSide Engenharia
+      Data: {data}
+==============================
+
+REDE TRIFÁSICA {tensao}V
+        │
+        │
+   Disjuntor Geral {disj_geral}A
+        │
+        │
+   Inversor de Frequência
+        │
+        │
+   Disjuntor Motor {disj_motor}A
+        │
+        │
+      Motor {motor} CV
+
+==============================
 """
 
-# =========================
-# DIAGRAMA MULTIFILAR
-# =========================
+
+# =====================================================
+# FUNÇÃO DIAGRAMA MULTIFILAR
+# =====================================================
 def gerar_diagrama_multifilar(tensao, motor, corrente):
 
+    data = datetime.now().strftime("%d/%m/%Y")
+
     return f"""
-ALIMENTAÇÃO {tensao}V
+==========================================
+          DIAGRAMA MULTIFILAR
+          AirSide Engenharia
+          Data: {data}
+==========================================
 
-L1 ── Disj Geral ── Inversor ── Disj Motor ──┐
-L2 ── Disj Geral ── Inversor ── Disj Motor ──┼── Motor {motor}CV
-L3 ── Disj Geral ── Inversor ── Disj Motor ──┘
+ALIMENTAÇÃO TRIFÁSICA {tensao}V
 
-COMANDO:
+L1 ───── Disj Geral ───── Inversor ───── Disj Motor ─────┐
+L2 ───── Disj Geral ───── Inversor ───── Disj Motor ─────┼── Motor {motor} CV
+L3 ───── Disj Geral ───── Inversor ───── Disj Motor ─────┘
+
+Corrente Nominal: {corrente} A
+
+------------------ COMANDO 24Vcc ------------------
 
 Fonte 24Vcc
-   │
-   ├── CLP
-   │     ├── Entrada Pressostato 1
-   │     ├── Entrada Pressostato 2
-   │     └── Saída RUN Inversor
+     │
+     ├── CLP
+     │     ├── Entrada Pressostato 1
+     │     ├── Entrada Pressostato 2
+     │     └── Saída RUN → Inversor
+
+==========================================
 """
 
-# =========================
-# CÁLCULO MOTOR (BLINDADO)
-# =========================
+
+# =====================================================
+# FUNÇÃO CÁLCULO MOTOR (BLINDADA)
+# =====================================================
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
 
     try:
@@ -63,7 +93,10 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
         if rendimento <= 0:
             rendimento = 0.65
 
+        # Potência hidráulica aproximada
         potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
+
+        # Margem de segurança
         potencia_kw *= 1.15
 
         potencia_cv = potencia_kw / 0.736
@@ -77,6 +110,7 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
         disj_motor = max(2, math.ceil(corrente * 1.25))
         disj_geral = max(6, math.ceil(disj_motor * 1.2))
 
+        # Seleção simples de cabo
         if corrente <= 18:
             cabo_motor = 2.5
         elif corrente <= 28:
@@ -91,20 +125,21 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
         return potencia_motor, corrente, disj_motor, disj_geral, cabo_motor
 
     except Exception as e:
-        print("Erro no calcular_motor:", e)
+        print("Erro no cálculo:", e)
         return 1, 0, 10, 16, 2.5
 
 
-# =========================
-# ENTRADAS
-# =========================
+# =====================================================
+# ENTRADAS DO USUÁRIO
+# =====================================================
 vazao = st.number_input("Vazão (m³/h)", min_value=100.0, value=5000.0)
 tensao = st.selectbox("Tensão (V)", [220, 380, 440])
 pressao = st.number_input("Pressão Total (Pa)", min_value=100.0, value=500.0)
 
-# =========================
+
+# =====================================================
 # BOTÃO CALCULAR
-# =========================
+# =====================================================
 if st.button("🔎 Calcular Sistema"):
 
     motor, corrente, disj_motor, disj_geral, cabo_motor = calcular_motor(
@@ -124,7 +159,7 @@ if st.button("🔎 Calcular Sistema"):
     st.write("**Automação:** CLP + 2 Pressostatos")
 
     st.markdown("## 📊 Diagrama Unifilar")
-    st.code(gerar_diagrama_unifilar(tensao, disj_geral, disj_motor, motor))
+    st.text(gerar_diagrama_unifilar(tensao, disj_geral, disj_motor, motor))
 
     st.markdown("## 📊 Diagrama Multifilar")
-    st.code(gerar_diagrama_multifilar(tensao, motor, corrente))
+    st.text(gerar_diagrama_multifilar(tensao, motor, corrente))
