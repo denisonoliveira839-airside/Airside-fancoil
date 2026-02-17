@@ -1,4 +1,3 @@
-
 # app_airside.py
 import streamlit as st
 from datetime import datetime
@@ -57,39 +56,44 @@ with tab1:
     st.subheader("🔧 Dados Técnicos")
 
     vazao = st.number_input("Vazão (m³/h)", min_value=100.0, step=100.0)
-pressao_total = st.number_input(
-    "Pressão Total do Sistema (Pa)",
-    min_value=100,
-    value=500,
-    step=50
-)
 
-tensao = st.selectbox("Tensão de Alimentação (V)", ["220", "380"])
+    pressao_total = st.number_input(
+        "Pressão Total do Sistema (Pa)",
+        min_value=100,
+        value=500,
+        step=50
+    )
+
     tensao = st.selectbox("Tensão de Alimentação (V)", ["220", "380"])
-    pot_banco = st.number_input("Potência Banco de Resistência (kW)", min_value=0.0, step=1.0)
+
+    pot_banco = st.number_input(
+        "Potência Banco de Resistência (kW)",
+        min_value=0.0,
+        step=1.0
+    )
 
     gerar = st.button("⚡ Gerar Projeto Executivo Completo")
 
     if gerar:
 
         motor, partida, corrente, disj_motor, cabo_motor = calcular_motor(
-    vazao,
-    tensao,
-    pressao_total
-)
+            vazao,
+            tensao,
+            pressao_total
+        )
 
         if pot_banco > 0:
             corrente_banco, disj_banco = calcular_disjuntor_cabo(pot_banco, tensao)
         else:
             corrente_banco, disj_banco = 0, 0
 
-        # Guardando dados na sessão
         st.session_state["dados_projeto"] = {
             "cliente": cliente,
             "engenheiro": engenheiro,
             "revisao": revisao,
             "data": data_atual,
             "vazao": vazao,
+            "pressao_total": pressao_total,
             "tensao": tensao,
             "motor": motor,
             "partida": partida,
