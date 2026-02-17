@@ -1,49 +1,45 @@
 import streamlit as st
 
-st.set_page_config(page_title="Gerador de Diagramas Elétricos", layout="wide")
+st.set_page_config(page_title="Projeto Elétrico", layout="wide")
 
-st.title("🔌 GERADOR DE DIAGRAMAS ELÉTRICOS")
+st.title("🔌 Sistema de Geração de Projeto Elétrico")
 
-# ==========================
-# SIDEBAR - DADOS
-# ==========================
+# =============================
+# ENTRADAS PRINCIPAIS
+# =============================
 
 st.sidebar.header("📋 Dados do Projeto")
 
 cliente = st.sidebar.text_input("Nome do Cliente")
 tecnico = st.sidebar.text_input("Nome do Técnico")
-motor = st.sidebar.text_input("Modelo do Motor")
-potencia = st.sidebar.number_input("Potência (CV)", min_value=0.1, step=0.1)
-tensao = st.selectbox("Tensão do Sistema", ["220V", "380V", "440V"])
-corrente = st.number_input("Corrente Nominal (A)", min_value=0.1, step=0.1)
+vazao = st.sidebar.number_input("Vazão (m³/h)", min_value=0.0)
+pressao = st.sidebar.number_input("Pressão (Pa)", min_value=0.0)
+potencia = st.sidebar.number_input("Potência do Motor (CV)", min_value=0.0)
+tensao = st.sidebar.selectbox("Tensão", ["220V", "380V", "440V"])
 
 st.sidebar.markdown("---")
-st.sidebar.header("⚙ Componentes")
+
+corrente = st.sidebar.number_input("Corrente Nominal (A)", min_value=0.0)
 
 modelo_disjuntor = st.sidebar.text_input("Modelo do Disjuntor")
 modelo_contator = st.sidebar.text_input("Modelo do Contator")
 modelo_rele = st.sidebar.text_input("Modelo do Relé Térmico")
 
-# ==========================
-# INFORMAÇÕES
-# ==========================
+# =============================
+# ABAS
+# =============================
 
-st.subheader("📄 Informações do Projeto")
+aba1, aba2, aba3 = st.tabs(["📐 Multifilar", "🧾 Lista de Materiais", "📄 Dados do Projeto"])
 
-st.write(f"**Cliente:** {cliente}")
-st.write(f"**Técnico:** {tecnico}")
-st.write(f"**Motor:** {motor}")
-st.write(f"**Potência:** {potencia} CV")
-st.write(f"**Tensão:** {tensao}")
-st.write(f"**Corrente:** {corrente} A")
+# =============================
+# ABA 1 - MULTIFILAR
+# =============================
 
-# ==========================
-# MULTIFILAR MELHORADO
-# ==========================
+with aba1:
 
-st.subheader("📐 Diagrama Multifilar")
+    st.subheader("Diagrama Multifilar")
 
-multifilar = f"""
+    multifilar = f"""
 ALIMENTAÇÃO TRIFÁSICA
 
 L1 ───────────────┐
@@ -63,53 +59,55 @@ L3 ───────────────┼─────────�
                   │              │              │
                   │              │              │
                   U              V              W
-                    MOTOR {motor}
-               {potencia} CV - {tensao}
-"""
+                     MOTOR {potencia} CV
+                     {tensao}
+    """
 
-st.code(multifilar)
+    st.code(multifilar)
 
-# ==========================
-# LISTA DE MATERIAIS DINÂMICA
-# ==========================
+# =============================
+# ABA 2 - LISTA DE MATERIAIS
+# =============================
 
-st.subheader("🧾 Lista de Materiais")
+with aba2:
 
-st.markdown(f"""
+    st.subheader("Lista de Materiais")
+
+    st.markdown(f"""
+### ⚡ Potência
 - 1x Disjuntor Tripolar - {modelo_disjuntor}
 - 1x Contator Tripolar - {modelo_contator}
 - 1x Relé Térmico - {modelo_rele}
-- Cabos compatíveis com {corrente} A
-- Bornes de passagem
+- Cabos para {corrente} A
+- Bornes
 - Trilho DIN
 - Canaletas
-""")
 
-# ==========================
-# SUGESTÃO DE INVERSORES
-# ==========================
+### ⚙ Sugestão de Inversores
+- WEG CFW300
+- WEG CFW500
+- Schneider Altivar 12
+- Schneider Altivar 320
 
-st.subheader("⚡ Sugestão de Inversores")
+### 🖥 Sugestão de CLP
+- WEG CLIC02
+- Siemens LOGO!
+- Schneider Zelio
+- Delta DVP
+    """)
 
-st.markdown("""
-- WEG CFW300  
-- WEG CFW500  
-- Schneider Altivar 12  
-- Schneider Altivar 320  
-""")
+# =============================
+# ABA 3 - DADOS DO PROJETO
+# =============================
 
-# ==========================
-# SUGESTÃO DE CLP
-# ==========================
+with aba3:
 
-st.subheader("🖥 Sugestão de CLP")
+    st.subheader("Resumo do Projeto")
 
-st.markdown("""
-- WEG CLIC02  
-- Siemens LOGO!  
-- Schneider Zelio  
-- Delta DVP  
-""")
-
-st.markdown("---")
-st.write("Sistema para apoio técnico e geração de diagrama multifilar.")
+    st.write(f"**Cliente:** {cliente}")
+    st.write(f"**Técnico:** {tecnico}")
+    st.write(f"**Vazão:** {vazao} m³/h")
+    st.write(f"**Pressão:** {pressao} Pa")
+    st.write(f"**Potência:** {potencia} CV")
+    st.write(f"**Tensão:** {tensao}")
+    st.write(f"**Corrente:** {corrente} A")
