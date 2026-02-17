@@ -10,7 +10,7 @@ st.markdown("### Sistema Profissional de Dimensionamento Elétrico")
 st.divider()
 
 # =====================================================
-# CÁLCULO MOTOR
+# CÁLCULO MOTOR - AJUSTADO PADRÃO INDUSTRIAL
 # =====================================================
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
 
@@ -25,9 +25,23 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
         2
     )
 
-    disj_motor = max(2, math.ceil(corrente * 1.25))
-    disj_geral = max(6, math.ceil(disj_motor * 1.2))
+    # ==============================
+    # PROTEÇÃO MOTOR (125%)
+    # ==============================
+    disj_motor = math.ceil(corrente * 1.25)
 
+    # ==============================
+    # PROTEÇÃO GERAL (130%)
+    # Nunca menor que 10A
+    # ==============================
+    disj_geral = math.ceil(disj_motor * 1.3)
+
+    if disj_geral < 10:
+        disj_geral = 10
+
+    # ==============================
+    # CABO PADRÃO INDUSTRIAL
+    # ==============================
     if corrente <= 18:
         cabo = 2.5
     elif corrente <= 28:
@@ -62,9 +76,9 @@ Data: {data}
 
 REDE TRIFÁSICA {tensao}V
 
-L1 ── Disj Geral ── Contator (1) ───────────────┐
-L2 ── Disj Geral ── Contator (3) ───────────────┼── Inversor
-L3 ── Disj Geral ── Contator (5) ───────────────┘
+L1 ── Disj Geral ({motor}A) ── Contator (1) ───────┐
+L2 ── Disj Geral ({motor}A) ── Contator (3) ───────┼── Inversor
+L3 ── Disj Geral ({motor}A) ── Contator (5) ───────┘
 
 Contator (2) ───────────── Inversor R
 Contator (4) ───────────── Inversor S
@@ -125,7 +139,7 @@ aba1, aba2, aba3, aba4 = st.tabs(
 )
 
 # =====================================================
-# ABA 1 - DADOS
+# ABA 1
 # =====================================================
 with aba1:
 
@@ -142,7 +156,6 @@ with aba1:
 
     calcular = st.button("🔎 Calcular Sistema", use_container_width=True)
 
-# Estado
 if "resultado" not in st.session_state:
     st.session_state.resultado = None
 
@@ -154,7 +167,7 @@ if calcular:
 
 
 # =====================================================
-# ABA 2 - RESULTADO DASHBOARD
+# ABA 2 - RESULTADO
 # =====================================================
 with aba2:
 
@@ -162,7 +175,7 @@ with aba2:
 
         motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
 
-        st.success("✅ Sistema dimensionado com sucesso")
+        st.success("✅ Sistema dimensionado com padrão industrial")
 
         col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -182,8 +195,6 @@ with aba3:
 
         motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
 
-        st.markdown("### 📑 Diagrama Multifilar Técnico")
-
         st.code(
             gerar_multifilar(
                 st.session_state.tensao,
@@ -197,7 +208,7 @@ with aba3:
 
 
 # =====================================================
-# ABA 4 - LISTA DE MATERIAIS
+# ABA 4 - MATERIAIS
 # =====================================================
 with aba4:
 
