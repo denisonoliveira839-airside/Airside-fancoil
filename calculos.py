@@ -1,5 +1,5 @@
-# calculos.py
 import math
+
 
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     """
@@ -7,9 +7,14 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
 
     vazao: m³/h
     tensao: "220" ou "380"
-    pressao_total: Pa (default 500 Pa típico Fancoil)
+    pressao_total: Pa
     rendimento: eficiência do conjunto ventilador
     """
+
+    # Garantir tipos corretos
+    vazao = float(vazao)
+    pressao_total = float(pressao_total)
+    tensao_int = int(tensao)
 
     # =============================
     # POTÊNCIA REAL (kW)
@@ -24,7 +29,7 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     potencia_cv = potencia_kw / 0.736
 
     # Arredondar para motor comercial inteiro
-    potencia_motor = math.ceil(potencia_cv)
+    potencia_motor = max(1, math.ceil(potencia_cv))
 
     # =============================
     # TIPO DE PARTIDA
@@ -40,8 +45,6 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     # =============================
     # CORRENTE TRIFÁSICA REAL
     # =============================
-
-    tensao_int = int(tensao)
 
     corrente = round(
         (potencia_kw * 1000) / (math.sqrt(3) * tensao_int * 0.85),
@@ -77,6 +80,8 @@ def calcular_disjuntor_cabo(potencia_banco, tensao):
     Banco de resistência trifásico
     """
 
+    # Garantir tipos
+    potencia_banco = float(potencia_banco)
     tensao_int = int(tensao)
 
     corrente = round(
@@ -86,4 +91,16 @@ def calcular_disjuntor_cabo(potencia_banco, tensao):
 
     disj_banco = math.ceil(corrente * 1.25)
 
-    return corrente, disj_banco
+    # Cabo simplificado
+    if corrente <= 18:
+        cabo_banco = 2.5
+    elif corrente <= 28:
+        cabo_banco = 4
+    elif corrente <= 36:
+        cabo_banco = 6
+    elif corrente <= 50:
+        cabo_banco = 10
+    else:
+        cabo_banco = 16
+
+    return corrente, disj_banco, cabo_banco
