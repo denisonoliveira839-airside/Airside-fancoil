@@ -76,16 +76,31 @@ with tab1:
 
     if gerar:
 
+        # =============================
+        # MOTOR
+        # =============================
+
         motor, partida, corrente, disj_motor, cabo_motor = calcular_motor(
-            vazao,
-            tensao,
-            pressao_total
+            float(vazao),
+            str(tensao),
+            float(pressao_total)
         )
 
+        # =============================
+        # BANCO DE RESISTÊNCIA
+        # =============================
+
         if pot_banco > 0:
-            corrente_banco, disj_banco = calcular_disjuntor_cabo(pot_banco, tensao)
+            corrente_banco, disj_banco, cabo_banco = calcular_disjuntor_cabo(
+                float(pot_banco),
+                str(tensao)
+            )
         else:
-            corrente_banco, disj_banco = 0, 0
+            corrente_banco, disj_banco, cabo_banco = 0, 0, 0
+
+        # =============================
+        # SALVAR SESSION
+        # =============================
 
         st.session_state["dados_projeto"] = {
             "cliente": cliente,
@@ -102,10 +117,11 @@ with tab1:
             "cabo_motor": cabo_motor,
             "pot_banco": pot_banco,
             "corrente_banco": corrente_banco,
-            "disj_banco": disj_banco
+            "disj_banco": disj_banco,
+            "cabo_banco": cabo_banco
         }
 
-        st.success("Projeto Gerado com Sucesso!")
+        st.success("✅ Projeto Gerado com Sucesso!")
 
 # =============================
 # ABA 2 — AUTOMAÇÃO
@@ -144,6 +160,7 @@ with tab3:
         st.write(f"Motor: {dados['motor']} CV")
         st.write(f"Corrente: {dados['corrente']} A")
         st.write(f"Disjuntor: {dados['disj_motor']} A")
+        st.write(f"Cabo Motor: {dados['cabo_motor']} mm²")
 
         gerar_pdf(
             dados["vazao"],
