@@ -3,293 +3,237 @@ import math
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="AirSide PRO 2.1", layout="wide")
+st.set_page_config(page_title="AirSide PRO", layout="wide")
 
-st.title("🌀 AirSide PRO 2.1")
-st.markdown("### Configurador e Gerador de Documentação Técnica HVAC")
+st.title("🌀 AirSide PRO")
+st.markdown("### Sistema Profissional de Dimensionamento Elétrico")
 st.divider()
 
 # =====================================================
 # FUNÇÕES DE CÁLCULO
 # =====================================================
-
-def calcular_motor(vazao, tensao, pressao_total):
-    rendimento = 0.65
+def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
     potencia_kw *= 1.15
-
     potencia_cv = potencia_kw / 0.736
-    motor_cv = max(1, math.ceil(potencia_cv))
+    potencia_motor = max(1, math.ceil(potencia_cv))
 
     corrente = round((potencia_kw * 1000) / (math.sqrt(3) * tensao * 0.85), 2)
-
     disj_motor = math.ceil(corrente * 1.25)
     disj_geral = max(10, math.ceil(disj_motor * 1.3))
 
-    return motor_cv, corrente, disj_motor, disj_geral
+    if corrente <= 18:
+        cabo = 2.5
+    elif corrente <= 28:
+        cabo = 4
+    elif corrente <= 36:
+        cabo = 6
+    elif corrente <= 50:
+        cabo = 10
+    else:
+        cabo = 16
+
+    return potencia_motor, corrente, disj_motor, disj_geral, cabo
 
 
-def calcular_resistencia_por_potencia(pot_total_kw, pot_unit_kw, tensao):
-    quantidade = math.ceil(pot_total_kw / pot_unit_kw)
-    corrente = round((pot_total_kw * 1000) / (math.sqrt(3) * tensao), 2)
-    disj = math.ceil(corrente * 1.25)
-    return quantidade, corrente, disj
+def calcular_resistencias(total_kw, unidade_kw):
+    qtd = math.ceil(total_kw / unidade_kw)
+    corrente_total = round((total_kw * 1000) / 380, 2)  # Corrente trifásica simplificada
+    disj_resistencia = math.ceil(corrente_total * 1.25)
+    return qtd, corrente_total, disj_resistencia
 
 
-def calcular_resistencia_por_quantidade(qtd, pot_unit_kw, tensao):
-    pot_total = qtd * pot_unit_kw
-    corrente = round((pot_total * 1000) / (math.sqrt(3) * tensao), 2)
-    disj = math.ceil(corrente * 1.25)
-    return pot_total, corrente, disj
-
-
-# =====================================================
-# MULTIFILARES
-# =====================================================
-
-def gerar_cabecalho(cliente, tecnico, tensao, tipo, vazao=None, pressao=None):
+def gerar_multifilar(tipo_partida, tensao, motor, corrente, cliente, tecnico, qtd_res=0, unidade_res_kw=0):
     data = datetime.now().strftime("%d/%m/%Y")
+    res_linha = ""
+    if qtd_res > 0:
+        res_linha = f"\nResistências: {qtd_res} x {unidade_res_kw}kW\nDJ Resistência: Calculado automaticamente\n"
 
-    texto = f"""
+    if tipo_partida == "Inversor":
+        diagrama = f"""
 ====================================================
-               DOCUMENTAÇÃO TÉCNICA
+               DIAGRAMA MULTIFILAR
 ====================================================
-
 Cliente: {cliente}
-Técnico Responsável: {tecnico}
+Técnico: {tecnico}
 Data: {data}
 
-Tipo de Sistema: {tipo}
-Tensão: {tensao}V
+REDE {tensao}V ── DJ Geral ── Inversor ── Motor {motor}CV
+U ── Motor U
+V ── Motor V
+W ── Motor W
+{res_linha}
+====================================================
 """
+    elif tipo_partida == "Partida Direta":
+        diagrama = f"""
+====================================================
+               DIAGRAMA MULTIFILAR
+====================================================
+Cliente: {cliente}
+Técnico: {tecnico}
+Data: {data}
 
-    if vazao:
-        texto += f"Vazão: {vazao} m³/h\n"
-    if pressao:
-        texto += f"Pressão Total: {pressao} Pa\n"
-
-    texto += "\n====================================================\n"
-    return texto
-
-
-def multifilar_motor(tipo, tensao, motor, disj_geral):
-
-    if tipo == "Inversor":
-        return f"""
-REDE {tensao}V → DJ Geral {disj_geral}A → Inversor → Motor {motor}CV
-Saída U/V/W → Motor
-"""
-
-    elif tipo == "Direta":
-        return f"""
-REDE {tensao}V → DJ Geral {disj_geral}A → Contator → Relé Térmico → Motor {motor}CV
-"""
-
-    elif tipo == "Estrela-Triângulo":
-        return f"""
-REDE {tensao}V → DJ Geral {disj_geral}A
-→ Contator Principal
-→ Contator Estrela
-→ Contator Triângulo
-→ Temporizador Y-Δ
-→ Motor {motor}CV
-"""
-
-    elif tipo == "Softstarter":
-        return f"""
-REDE {tensao}V → DJ Geral {disj_geral}A → Softstarter → Contator Bypass → Motor {motor}CV
-"""
-
-    else:
-        return ""
-
-
-def multifilar_resistencia(tensao, qtd, pot_unit, corrente):
-    return f"""
-REDE {tensao}V → DJ Resistência → Contator
-Saída → {qtd} Resistências de {pot_unit} kW
-Corrente Total: {corrente} A
+REDE {tensao}V ── DJ Geral ── Contator ── Motor {motor}CV
 Termostato de Segurança em Série
+{res_linha}
+====================================================
 """
+    elif tipo_partida == "Estrela-Triângulo":
+        diagrama = f"""
+====================================================
+               DIAGRAMA MULTIFILAR
+====================================================
+Cliente: {cliente}
+Técnico: {tecnico}
+Data: {data}
+
+REDE {tensao}V ── DJ Geral
+          ├─ Contator Principal
+          ├─ Contator Estrela
+          ├─ Contator Triângulo
+          └─ Temporizador Y-Δ
+          └─ Motor {motor}CV
+{res_linha}
+====================================================
+"""
+    elif tipo_partida == "Softstarter":
+        diagrama = f"""
+====================================================
+               DIAGRAMA MULTIFILAR
+====================================================
+Cliente: {cliente}
+Técnico: {tecnico}
+Data: {data}
+
+REDE {tensao}V ── DJ Geral ── Softstarter ── Contator Bypass ── Motor {motor}CV
+{res_linha}
+====================================================
+"""
+    else:
+        diagrama = "Tipo de partida inválido."
+
+    return diagrama
+
+
+def gerar_lista(motor, disj_motor, disj_geral, cabo, qtd_res=0, unidade_res_kw=0):
+    lista = [
+        ("Disjuntor Geral", f"{disj_geral}A Tripolar", "1 un"),
+        ("Disjuntor Motor", f"{disj_motor}A Curva C", "1 un"),
+        ("Contator", f"{motor}CV categoria AC-3", "1 un"),
+        ("Inversor Sugerido", f"WEG CFW300 {motor}CV", "1 un"),
+        ("Alternativa Inversor", f"Siemens V20 {motor}CV", "1 un"),
+        ("CLP Sugerido", "WEG CLIC02 24Vcc", "1 un"),
+        ("Alternativa CLP", "Siemens LOGO 24RCE", "1 un"),
+        ("Fonte 24Vcc", "2A ou superior", "1 un"),
+        ("Pressostato Industrial", "Contato NA/NF", "2 un"),
+        ("Cabo Potência", f"{cabo} mm²", "Conforme projeto"),
+        ("Cabo Comando", "1,5 mm²", "Conforme projeto"),
+        ("Bornes 2,5mm", "Trilho DIN", "Conforme necessidade"),
+        ("Painel IP54", "Metálico", "1 un"),
+    ]
+    if qtd_res > 0:
+        lista.append(("Resistência", f"{unidade_res_kw}kW", f"{qtd_res} un"))
+    return lista
 
 
 # =====================================================
-# INTERFACE
+# ABAS
 # =====================================================
-
 aba1, aba2, aba3, aba4 = st.tabs(
     ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais"]
 )
 
+# =====================================================
+# ABA 1 - DADOS
+# =====================================================
 with aba1:
-
-    cliente = st.text_input("Cliente")
-    tecnico = st.text_input("Técnico Responsável")
-
+    col1, col2 = st.columns(2)
+    cliente = col1.text_input("Nome do Cliente")
+    tecnico = col2.text_input("Nome do Técnico")
     st.divider()
 
-    tipo_partida = st.selectbox(
-        "Tipo de Sistema",
-        ["Inversor", "Direta", "Estrela-Triângulo", "Softstarter", "Somente Resistência"]
-    )
-
-    tensao = st.selectbox("Tensão (V)", [220, 380, 440])
-
-    if tipo_partida != "Somente Resistência":
-        vazao = st.number_input("Vazão (m³/h)", value=5000.0)
-        pressao = st.number_input("Pressão Total (Pa)", value=500.0)
-
+    col3, col4, col5 = st.columns(3)
+    vazao = col3.number_input("Vazão (m³/h)", min_value=100.0, value=5000.0)
+    tensao = col4.selectbox("Tensão (V)", [220, 380, 440])
+    pressao = col5.number_input("Pressão Total (Pa)", min_value=100.0, value=500.0)
+    tipo_partida = st.selectbox("Tipo de Partida", ["Inversor", "Partida Direta", "Estrela-Triângulo", "Softstarter"])
     st.divider()
-    st.subheader("🔥 Resistência (Opcional)")
 
-    usar_resistencia = st.checkbox("Adicionar Resistência ao Sistema")
+    col6, col7 = st.columns(2)
+    total_res = col6.number_input("Potência Total Resistências (kW)", min_value=0.0, value=0.0)
+    unidade_res = col7.number_input("Potência Unitária Resistência (kW)", min_value=0.0, value=0.0)
 
-    if usar_resistencia:
-        modo_res = st.radio(
-            "Modo de Cálculo",
-            ["Informar Potência Total", "Informar Quantidade"]
-        )
+    calcular = st.button("🔎 Calcular Sistema", use_container_width=True)
 
-        pot_unit = st.number_input("Potência Unitária (kW)", value=1.75)
-
-        if modo_res == "Informar Potência Total":
-            pot_total = st.number_input("Potência Total Desejada (kW)", value=10.5)
-        else:
-            qtd_res = st.number_input("Quantidade de Resistências", value=6)
-
-    calcular = st.button("🔎 Gerar Projeto", use_container_width=True)
-
-
-# =====================================================
-# PROCESSAMENTO
-# =====================================================
+if "resultado" not in st.session_state:
+    st.session_state.resultado = None
 
 if calcular:
-
-    motor_data = None
-    res_data = None
-
-    if tipo_partida != "Somente Resistência":
-        motor_data = calcular_motor(vazao, tensao, pressao)
-
-    if usar_resistencia:
-        if modo_res == "Informar Potência Total":
-            res_data = calcular_resistencia_por_potencia(
-                pot_total, pot_unit, tensao
-            )
-        else:
-            res_data = calcular_resistencia_por_quantidade(
-                qtd_res, pot_unit, tensao
-            )
-
-    st.session_state.update({
-        "cliente": cliente,
-        "tecnico": tecnico,
-        "tipo": tipo_partida,
-        "tensao": tensao,
-        "vazao": vazao if tipo_partida != "Somente Resistência" else None,
-        "pressao": pressao if tipo_partida != "Somente Resistência" else None,
-        "motor": motor_data,
-        "res": res_data,
-        "pot_unit": pot_unit if usar_resistencia else None
-    })
-
+    st.session_state.resultado = calcular_motor(vazao, tensao, pressao)
+    st.session_state.cliente = cliente
+    st.session_state.tecnico = tecnico
+    st.session_state.tensao = tensao
+    st.session_state.tipo_partida = tipo_partida
+    if total_res > 0 and unidade_res > 0:
+        st.session_state.qtd_res, st.session_state.corrente_res, st.session_state.dj_res = calcular_resistencias(total_res, unidade_res)
+        st.session_state.total_res = total_res
+        st.session_state.unidade_res = unidade_res
+    else:
+        st.session_state.qtd_res, st.session_state.corrente_res, st.session_state.dj_res = 0,0,0
+        st.session_state.total_res, st.session_state.unidade_res = 0,0
 
 # =====================================================
-# RESULTADO
+# ABA 2 - RESULTADO
 # =====================================================
-
 with aba2:
-
-    if "motor" in st.session_state and st.session_state.motor:
-
-        motor, corrente, disj_motor, disj_geral = st.session_state.motor
-
-        st.metric("Motor (CV)", motor)
-        st.metric("Corrente (A)", corrente)
-        st.metric("DJ Geral (A)", disj_geral)
-
-    if "res" in st.session_state and st.session_state.res:
-
-        res = st.session_state.res
-        qtd = res[0]
-        corrente_res = res[1]
-        disj_res = res[2]
-
-        st.metric("Qtd Resistências", qtd)
-        st.metric("Corrente Resistência (A)", corrente_res)
-        st.metric("DJ Resistência (A)", disj_res)
-
+    if st.session_state.resultado:
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
+        st.success("✅ Sistema dimensionado com padrão industrial")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("⚙ Motor", f"{motor} CV")
+        col2.metric("🔌 Corrente", f"{corrente} A")
+        col3.metric("🛡 DJ Motor", f"{disj_motor} A")
+        col4.metric("⚡ DJ Geral", f"{disj_geral} A")
+        col5.metric("🧵 Cabo", f"{cabo} mm²")
+        if st.session_state.qtd_res > 0:
+            st.metric("🔥 Resistências", f"{st.session_state.qtd_res} un | {st.session_state.total_res} kW")
 
 # =====================================================
-# MULTIFILAR
+# ABA 3 - MULTIFILAR
 # =====================================================
-
 with aba3:
-
-    if "tipo" in st.session_state:
-
-        cabecalho = gerar_cabecalho(
-            st.session_state.cliente,
-            st.session_state.tecnico,
-            st.session_state.tensao,
-            st.session_state.tipo,
-            st.session_state.vazao,
-            st.session_state.pressao
-        )
-
-        texto = cabecalho
-
-        if st.session_state.motor:
-            motor, corrente, disj_motor, disj_geral = st.session_state.motor
-            texto += multifilar_motor(
-                st.session_state.tipo,
+    if st.session_state.resultado:
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
+        st.code(
+            gerar_multifilar(
+                st.session_state.tipo_partida,
                 st.session_state.tensao,
                 motor,
-                disj_geral
-            )
-
-        if st.session_state.res:
-            qtd, corrente_res, disj_res = st.session_state.res
-            texto += multifilar_resistencia(
-                st.session_state.tensao,
-                qtd,
-                st.session_state.pot_unit,
-                corrente_res
-            )
-
-        st.code(texto, language="text")
-
+                corrente,
+                st.session_state.cliente,
+                st.session_state.tecnico,
+                st.session_state.qtd_res,
+                st.session_state.unidade_res
+            ),
+            language="text"
+        )
 
 # =====================================================
-# MATERIAIS
+# ABA 4 - MATERIAIS
 # =====================================================
-
 with aba4:
-
-    lista = []
-
-    if "motor" in st.session_state and st.session_state.motor:
-        motor, corrente, disj_motor, disj_geral = st.session_state.motor
-        lista.append(("Disjuntor Geral", f"{disj_geral}A", "1 un"))
-        lista.append(("Motor", f"{motor}CV", "1 un"))
-
-        if st.session_state.tipo == "Inversor":
-            lista.append(("Inversor", f"{motor}CV", "1 un"))
-        elif st.session_state.tipo == "Direta":
-            lista.append(("Contator", "AC-3", "1 un"))
-            lista.append(("Relé Térmico", "Compatível", "1 un"))
-        elif st.session_state.tipo == "Estrela-Triângulo":
-            lista.append(("3 Contatores", "AC-3", "3 un"))
-            lista.append(("Temporizador Y-Δ", "-", "1 un"))
-        elif st.session_state.tipo == "Softstarter":
-            lista.append(("Softstarter", f"{motor}CV", "1 un"))
-
-    if "res" in st.session_state and st.session_state.res:
-        qtd, corrente_res, disj_res = st.session_state.res
-        lista.append(("Resistência", f"{st.session_state.pot_unit} kW", f"{qtd} un"))
-        lista.append(("Disjuntor Resistência", f"{disj_res}A", "1 un"))
-
-    if lista:
+    if st.session_state.resultado:
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
+        lista = gerar_lista(
+            motor, disj_motor, disj_geral, cabo,
+            st.session_state.qtd_res, st.session_state.unidade_res
+        )
         df = pd.DataFrame(lista, columns=["Item", "Especificação", "Quantidade"])
         st.dataframe(df, use_container_width=True)
+        st.download_button(
+            "⬇ Exportar Lista em CSV",
+            df.to_csv(index=False),
+            file_name="lista_materiais.csv",
+            mime="text/csv"
+        )
