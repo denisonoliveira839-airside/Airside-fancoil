@@ -2,130 +2,124 @@ import streamlit as st
 import math
 from datetime import datetime
 
-st.set_page_config(page_title="AirSide - Ventilação Industrial", layout="centered")
+st.set_page_config(page_title="AirSide PRO", layout="centered")
 
-st.title("🌀 AirSide - Dimensionamento Elétrico de Ventiladores")
+st.title("🌀 AirSide PRO - Dimensionamento Elétrico")
 
 # =====================================================
-# FUNÇÕES
+# CÁLCULO MOTOR
 # =====================================================
-
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
 
-    try:
-        vazao = float(vazao)
-        pressao_total = float(pressao_total)
-        rendimento = float(rendimento)
-        tensao_int = int(tensao)
+    potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
+    potencia_kw *= 1.15
 
-        potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
-        potencia_kw *= 1.15
+    potencia_cv = potencia_kw / 0.736
+    potencia_motor = max(1, math.ceil(potencia_cv))
 
-        potencia_cv = potencia_kw / 0.736
-        potencia_motor = max(1, math.ceil(potencia_cv))
+    corrente = round(
+        (potencia_kw * 1000) / (math.sqrt(3) * tensao * 0.85),
+        2
+    )
 
-        corrente = round(
-            (potencia_kw * 1000) / (math.sqrt(3) * tensao_int * 0.85),
-            2
-        )
+    disj_motor = max(2, math.ceil(corrente * 1.25))
+    disj_geral = max(6, math.ceil(disj_motor * 1.2))
 
-        disj_motor = max(2, math.ceil(corrente * 1.25))
-        disj_geral = max(6, math.ceil(disj_motor * 1.2))
+    if corrente <= 18:
+        cabo = 2.5
+    elif corrente <= 28:
+        cabo = 4
+    elif corrente <= 36:
+        cabo = 6
+    elif corrente <= 50:
+        cabo = 10
+    else:
+        cabo = 16
 
-        if corrente <= 18:
-            cabo_motor = 2.5
-        elif corrente <= 28:
-            cabo_motor = 4
-        elif corrente <= 36:
-            cabo_motor = 6
-        elif corrente <= 50:
-            cabo_motor = 10
-        else:
-            cabo_motor = 16
-
-        return potencia_motor, corrente, disj_motor, disj_geral, cabo_motor
-
-    except:
-        return 1, 0, 10, 16, 2.5
+    return potencia_motor, corrente, disj_motor, disj_geral, cabo
 
 
-def gerar_lista_materiais(motor, disj_motor, disj_geral, cabo_motor):
+# =====================================================
+# MULTIFILAR TÉCNICO COMPLETO
+# =====================================================
+def gerar_multifilar(tensao, motor, corrente, cliente, tecnico):
 
-    materiais = [
-        ("Disjuntor Geral", f"{disj_geral} A", "1 un"),
-        ("Disjuntor Motor", f"{disj_motor} A", "1 un"),
-        ("Inversor de Frequência", f"{motor} CV", "1 un"),
-        ("Motor Trifásico", f"{motor} CV", "1 un"),
-        ("CLP", "Compacto 24Vcc", "1 un"),
-        ("Pressostato", "Industrial", "2 un"),
-        ("Fonte 24Vcc", "2A ou superior", "1 un"),
-        ("Cabo de Potência", f"{cabo_motor} mm²", "Conforme projeto"),
-        ("Cabos de Comando", "1,5 mm²", "Conforme projeto"),
-        ("Bornes e trilho DIN", "-", "Conforme necessidade"),
-        ("Painel metálico", "IP54 ou superior", "1 un"),
-    ]
-
-    return materiais
-
-
-def gerar_unifilar(tensao, disj_geral, disj_motor, motor, cliente, tecnico):
     data = datetime.now().strftime("%d/%m/%Y")
+
     return f"""
-==============================
-      DIAGRAMA UNIFILAR
-==============================
+====================================================
+               DIAGRAMA MULTIFILAR
+====================================================
 
 Cliente: {cliente}
 Técnico: {tecnico}
 Data: {data}
+
+================ POTÊNCIA =================
 
 REDE TRIFÁSICA {tensao}V
-        │
-   Disjuntor Geral {disj_geral}A
-        │
-   Inversor de Frequência
-        │
-   Disjuntor Motor {disj_motor}A
-        │
-      Motor {motor} CV
-"""
 
+L1 ───── Disj Geral ───── Contator (1)
+                                  (2) ───── Inversor R
+L2 ───── Disj Geral ───── Contator (3)
+                                  (4) ───── Inversor S
+L3 ───── Disj Geral ───── Contator (5)
+                                  (6) ───── Inversor T
 
-def gerar_multifilar(tensao, motor, corrente, cliente, tecnico):
-    data = datetime.now().strftime("%d/%m/%Y")
-    return f"""
-==========================================
-          DIAGRAMA MULTIFILAR
-==========================================
+Inversor de Frequência
 
-Cliente: {cliente}
-Técnico: {tecnico}
-Data: {data}
+U ───────────────────────── Motor U
+V ───────────────────────── Motor V
+W ───────────────────────── Motor W
 
-ALIMENTAÇÃO {tensao}V
-
-L1 ─── Disj Geral ─── Inversor ─── Disj Motor ───┐
-L2 ─── Disj Geral ─── Inversor ─── Disj Motor ───┼── Motor {motor} CV
-L3 ─── Disj Geral ─── Inversor ─── Disj Motor ───┘
-
+Motor Trifásico {motor} CV
 Corrente Nominal: {corrente} A
 
-COMANDO 24Vcc
+================ COMANDO 24Vcc =================
 
-Fonte 24Vcc
-   ├── CLP
-   │     ├── Pressostato 1
-   │     ├── Pressostato 2
-   │     └── RUN → Inversor
+Fase ─── Disjuntor Comando ─── Fonte 24Vcc
+
++24V ─── Botão LIGA (NA) ───┐
+                              ├── Entrada I1 CLP
++24V ─── Pressostato 1 ──────┤
++24V ─── Pressostato 2 ──────┘
+
+CLP Saída Q1 ─── Contator A1
+Neutro/0V ─────── Contator A2
+
+Contato Auxiliar Contator 13-14 → Realimentação CLP
+
+====================================================
 """
+
+
+# =====================================================
+# LISTA DE MATERIAIS COM SUGESTÃO
+# =====================================================
+def gerar_lista(motor, disj_motor, disj_geral, cabo):
+
+    return [
+        ("Disjuntor Geral", f"{disj_geral}A Tripolar", "1 un"),
+        ("Disjuntor Motor", f"{disj_motor}A Curva C", "1 un"),
+        ("Contator", f"{motor}CV categoria AC-3", "1 un"),
+        ("Inversor Sugerido", f"WEG CFW300 {motor}CV", "1 un"),
+        ("Alternativa Inversor", f"Siemens V20 {motor}CV", "1 un"),
+        ("CLP Sugerido", "WEG CLIC02 24Vcc", "1 un"),
+        ("Alternativa CLP", "Siemens LOGO 24RCE", "1 un"),
+        ("Fonte 24Vcc", "2A ou superior", "1 un"),
+        ("Pressostato Industrial", "Contato NA/NF", "2 un"),
+        ("Cabo Potência", f"{cabo} mm²", "Conforme projeto"),
+        ("Cabo Comando", "1,5 mm²", "Conforme projeto"),
+        ("Bornes 2,5mm", "Trilho DIN", "Conforme necessidade"),
+        ("Painel IP54", "Metálico", "1 un"),
+    ]
 
 
 # =====================================================
 # ABAS
 # =====================================================
-
 aba1, aba2, aba3, aba4 = st.tabs(
-    ["📋 Dados", "📊 Resultado", "📑 Diagramas", "📦 Lista de Materiais"]
+    ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais"]
 )
 
 with aba1:
@@ -153,39 +147,21 @@ with aba2:
 
     if st.session_state.resultado:
 
-        motor, corrente, disj_motor, disj_geral, cabo_motor = st.session_state.resultado
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
 
-        st.markdown("## 🔧 Resultado Técnico")
         st.write(f"Motor: {motor} CV")
         st.write(f"Corrente: {corrente} A")
         st.write(f"Disjuntor Motor: {disj_motor} A")
         st.write(f"Disjuntor Geral: {disj_geral} A")
-        st.write(f"Cabo: {cabo_motor} mm²")
-        st.write("Sistema: Inversor de Frequência")
-        st.write("Automação: CLP + 2 Pressostatos")
-    else:
-        st.info("Calcule o sistema na aba Dados.")
+        st.write(f"Cabo Potência: {cabo} mm²")
 
 
 with aba3:
 
     if st.session_state.resultado:
 
-        motor, corrente, disj_motor, disj_geral, cabo_motor = st.session_state.resultado
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
 
-        st.markdown("## 📊 Unifilar")
-        st.text(
-            gerar_unifilar(
-                st.session_state.tensao,
-                disj_geral,
-                disj_motor,
-                motor,
-                st.session_state.cliente,
-                st.session_state.tecnico,
-            )
-        )
-
-        st.markdown("## 📊 Multifilar")
         st.text(
             gerar_multifilar(
                 st.session_state.tensao,
@@ -195,24 +171,15 @@ with aba3:
                 st.session_state.tecnico,
             )
         )
-    else:
-        st.info("Calcule primeiro.")
 
 
 with aba4:
 
     if st.session_state.resultado:
 
-        motor, corrente, disj_motor, disj_geral, cabo_motor = st.session_state.resultado
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
 
-        materiais = gerar_lista_materiais(
-            motor, disj_motor, disj_geral, cabo_motor
-        )
+        lista = gerar_lista(motor, disj_motor, disj_geral, cabo)
 
-        st.markdown("## 📦 Lista de Materiais")
-
-        for item in materiais:
-            st.write(f"- {item[0]} | {item[1]} | {item[2]}")
-
-    else:
-        st.info("Calcule o sistema para gerar a lista.")
+        for item in lista:
+            st.write(f"🔹 {item[0]} | {item[1]} | {item[2]}")
