@@ -1,10 +1,13 @@
 import streamlit as st
 import math
+import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="AirSide PRO", layout="centered")
+st.set_page_config(page_title="AirSide PRO", layout="wide")
 
-st.title("🌀 AirSide PRO - Dimensionamento Elétrico")
+st.title("🌀 AirSide PRO")
+st.markdown("### Sistema Profissional de Dimensionamento Elétrico")
+st.divider()
 
 # =====================================================
 # CÁLCULO MOTOR
@@ -40,7 +43,7 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
 
 
 # =====================================================
-# MULTIFILAR TÉCNICO COMPLETO
+# MULTIFILAR
 # =====================================================
 def gerar_multifilar(tensao, motor, corrente, cliente, tecnico):
 
@@ -59,42 +62,41 @@ Data: {data}
 
 REDE TRIFÁSICA {tensao}V
 
-L1 ───── Disj Geral ───── Contator (1)
-                                  (2) ───── Inversor R
-L2 ───── Disj Geral ───── Contator (3)
-                                  (4) ───── Inversor S
-L3 ───── Disj Geral ───── Contator (5)
-                                  (6) ───── Inversor T
+L1 ── Disj Geral ── Contator (1) ───────────────┐
+L2 ── Disj Geral ── Contator (3) ───────────────┼── Inversor
+L3 ── Disj Geral ── Contator (5) ───────────────┘
 
-Inversor de Frequência
+Contator (2) ───────────── Inversor R
+Contator (4) ───────────── Inversor S
+Contator (6) ───────────── Inversor T
 
-U ───────────────────────── Motor U
-V ───────────────────────── Motor V
-W ───────────────────────── Motor W
+Inversor → U ───────── Motor U
+Inversor → V ───────── Motor V
+Inversor → W ───────── Motor W
 
 Motor Trifásico {motor} CV
 Corrente Nominal: {corrente} A
 
 ================ COMANDO 24Vcc =================
 
-Fase ─── Disjuntor Comando ─── Fonte 24Vcc
+Fase ── Disj Comando ── Fonte 24Vcc
 
-+24V ─── Botão LIGA (NA) ───┐
-                              ├── Entrada I1 CLP
-+24V ─── Pressostato 1 ──────┤
-+24V ─── Pressostato 2 ──────┘
++24V ── Botão LIGA (NA) ──┐
+                          ├─ I1 CLP
++24V ── Pressostato 1 ────┤
++24V ── Pressostato 2 ────┘
 
-CLP Saída Q1 ─── Contator A1
-Neutro/0V ─────── Contator A2
+Q1 CLP ── A1 Contator
+0V ─────── A2 Contator
 
-Contato Auxiliar Contator 13-14 → Realimentação CLP
+Contato 13-14 → Realimentação CLP
 
 ====================================================
 """
 
 
 # =====================================================
-# LISTA DE MATERIAIS COM SUGESTÃO
+# LISTA DE MATERIAIS
 # =====================================================
 def gerar_lista(motor, disj_motor, disj_geral, cabo):
 
@@ -122,17 +124,25 @@ aba1, aba2, aba3, aba4 = st.tabs(
     ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais"]
 )
 
+# =====================================================
+# ABA 1 - DADOS
+# =====================================================
 with aba1:
 
-    cliente = st.text_input("Nome do Cliente")
-    tecnico = st.text_input("Nome do Técnico")
+    col1, col2 = st.columns(2)
+    cliente = col1.text_input("Nome do Cliente")
+    tecnico = col2.text_input("Nome do Técnico")
 
-    vazao = st.number_input("Vazão (m³/h)", min_value=100.0, value=5000.0)
-    tensao = st.selectbox("Tensão (V)", [220, 380, 440])
-    pressao = st.number_input("Pressão Total (Pa)", min_value=100.0, value=500.0)
+    st.divider()
 
-    calcular = st.button("🔎 Calcular Sistema")
+    col3, col4, col5 = st.columns(3)
+    vazao = col3.number_input("Vazão (m³/h)", min_value=100.0, value=5000.0)
+    tensao = col4.selectbox("Tensão (V)", [220, 380, 440])
+    pressao = col5.number_input("Pressão Total (Pa)", min_value=100.0, value=500.0)
 
+    calcular = st.button("🔎 Calcular Sistema", use_container_width=True)
+
+# Estado
 if "resultado" not in st.session_state:
     st.session_state.resultado = None
 
@@ -143,36 +153,52 @@ if calcular:
     st.session_state.tensao = tensao
 
 
+# =====================================================
+# ABA 2 - RESULTADO DASHBOARD
+# =====================================================
 with aba2:
 
     if st.session_state.resultado:
 
         motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
 
-        st.write(f"Motor: {motor} CV")
-        st.write(f"Corrente: {corrente} A")
-        st.write(f"Disjuntor Motor: {disj_motor} A")
-        st.write(f"Disjuntor Geral: {disj_geral} A")
-        st.write(f"Cabo Potência: {cabo} mm²")
+        st.success("✅ Sistema dimensionado com sucesso")
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        col1.metric("⚙ Motor", f"{motor} CV")
+        col2.metric("🔌 Corrente", f"{corrente} A")
+        col3.metric("🛡 DJ Motor", f"{disj_motor} A")
+        col4.metric("⚡ DJ Geral", f"{disj_geral} A")
+        col5.metric("🧵 Cabo", f"{cabo} mm²")
 
 
+# =====================================================
+# ABA 3 - MULTIFILAR
+# =====================================================
 with aba3:
 
     if st.session_state.resultado:
 
         motor, corrente, disj_motor, disj_geral, cabo = st.session_state.resultado
 
-        st.text(
+        st.markdown("### 📑 Diagrama Multifilar Técnico")
+
+        st.code(
             gerar_multifilar(
                 st.session_state.tensao,
                 motor,
                 corrente,
                 st.session_state.cliente,
                 st.session_state.tecnico,
-            )
+            ),
+            language="text"
         )
 
 
+# =====================================================
+# ABA 4 - LISTA DE MATERIAIS
+# =====================================================
 with aba4:
 
     if st.session_state.resultado:
@@ -181,5 +207,13 @@ with aba4:
 
         lista = gerar_lista(motor, disj_motor, disj_geral, cabo)
 
-        for item in lista:
-            st.write(f"🔹 {item[0]} | {item[1]} | {item[2]}")
+        df = pd.DataFrame(lista, columns=["Item", "Especificação", "Quantidade"])
+
+        st.dataframe(df, use_container_width=True)
+
+        st.download_button(
+            "⬇ Exportar Lista em CSV",
+            df.to_csv(index=False),
+            file_name="lista_materiais.csv",
+            mime="text/csv"
+        )
