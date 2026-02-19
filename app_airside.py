@@ -111,7 +111,7 @@ def calcular_resistencia_por_quantidade(qtd, pot_unit, tensao):
     return qtd, corrente_res, disj_res
 
 # =====================================================
-# ABAS (AGORA COM 5 ABAS)
+# ABAS
 # =====================================================
 aba1, aba2, aba3, aba4, aba5 = st.tabs(
     ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais", "🎛️ Simulador"]
@@ -238,34 +238,109 @@ with aba4:
         )
 
 # =====================================================
-# ABA 5 - SIMULADOR
+# ABA 5 - SIMULADOR INDUSTRIAL
 # =====================================================
 with aba5:
-    st.subheader("💨 Simulação de Pressostatos e Ventilador")
+    st.subheader("🎛️ Simulador Industrial - Inversor + CLP")
 
-    nivel = st.slider("Nível de Sujidade do Filtro", 0, 500, 0)
+    rpm_max = 3600
+    setpoint = st.number_input("Pressão Alvo (Pa)", 100, 1000, 400)
+    sujidade = st.slider("Nível de Sujidade do Filtro (%)", 0, 100, 0)
 
-    p1_ativar = st.number_input("Pressostato 1 - Ativar (nível)", 0, 500, 250)
-    p1_desativar = st.number_input("Pressostato 1 - Desativar (nível)", 0, 500, 200)
+    if "rpm_auto" not in st.session_state:
+        st.session_state.rpm_auto = 1200
 
-    p2_ativar = st.number_input("Pressostato 2 - Ativar (nível)", 0, 500, 400)
-    p2_desativar = st.number_input("Pressostato 2 - Desativar (nível)", 0, 500, 350)
+    rpm = st.session_state.rpm_auto
 
-    st.subheader("🔹 Status Atual")
+    pressao_motor = (rpm / rpm_max) * 500
+    contrapressao = sujidade * 5
+    pressao_total = pressao_motor + contrapressao
 
-    pressostato1 = nivel >= p1_ativar
-    if nivel <= p1_desativar:
-        pressostato1 = False
+    erro = setpoint - pressao_total
+    ganho = 0.4
+    rpm += erro * ganho
+    rpm = max(0, min(rpm, rpm_max))
+    st.session_state.rpm_auto = rpm
 
-    pressostato2 = nivel >= p2_ativar
-    if nivel <= p2_desativar:
-        pressostato2 = False
+    pressao_motor = (rpm / rpm_max) * 500
+    pressao_total = round(pressao_motor + contrapressao, 1)
 
-    st.markdown(f"- Pressostato 1: {'🟢 Ativado' if pressostato1 else '🔴 Desligado'}")
-    st.markdown(f"- Pressostato 2: {'🟢 Ativado' if pressostato2 else '🔴 Desligado'}")
+    st.divider()
+    col1, col2, col3 = st.columns(3)
+    col1.metric("RPM Atual", int(rpm))
+    col2.metric("Pressão Total (Pa)", pressao_total)
+    col3.metric("Erro", round(erro, 1))
 
-    ventilador_status = "🟢 Ligado"
-    if pressostato1 or pressostato2:
-        ventilador_status = "🔴 Desligado"
+    st.progress(rpm / rpm_max)
 
-    st.markdown(f"- Ventilador: {ventilador_status}")
+    st.divider()
+    p1_on = st.number_input("P1 Ativar (Pa)", 0, 2000, 700)
+    p1_off = st.number_input("P1 Desativar (Pa)", 0, 2000, 600)
+    p2_on = st.number_input("P2 Crítico (Pa)", 0, 2000, 900)
+    p2_off = st.number_input("P2 Reset (Pa)", 0, 2000, 800)
+
+    if "p1_estado" not in st.session_state:
+        st.session_state.p1_estado = False
+    if "p2_estado" not in st.session_state:
+        st.session_state.p2_estado = False
+
+    if pressao_total >= p1_on:
+        st.session_state.p1_estado = True
+    elif pressao_total <= p1_off:
+        st.session_state.p1_estado = False
+
+    if pressao_total >= p2_on:
+        st.session_state.p2_estado = True
+    elif pressao_total <= p2_off:
+        st.session_state.p2_estado = False
+
+    p1 = st.session_state.p1_estado
+    p2 = st.session_state.p2_estado
+
+    st.markdown(f"- Pressostato 1: {'🟡 Alarme' if p1 else '🟢 Normal'}")
+    st.markdown(f"- Pressostato 2: {'🔴 Crítico' if p2 else '🟢 Normal'}")
+
+    if p2:
+        st.error("🚨 Pressão Crítica! CLP Desligando Motor!")
+        st.session_state.rpm_auto = 0
+
+    st.divider()
+    st.subheader("🌀 Motor")
+
+    velocidade_animacao = max(0.2, 5 - (rpm / rpm_max) * 4.5)
+
+    motor_html = f"""
+    <div style="display:flex; justify-content:center; align-items:center;">
+        <div style="
+            width:150px;
+            height:150px;
+            border-radius:50%;
+            border:8px solid #1f77b4;
+            position:relative;
+            animation: spin {velocidade_animacao}s linear infinite;
+        ">
+            <div style="
+                position:absolute;
+                top:50%;
+                left:50%;
+                width:10px;
+                height:60px;
+                background:#1f77b4;
+                transform:translate(-50%, -50%);
+            "></div>
+        </div>
+    </div>
+
+    <style>
+    @keyframes spin {{
+        from {{ transform: rotate(0deg); }}
+        to {{ transform: rotate(360deg); }}
+    }}
+    </style>
+    """
+
+    if rpm > 0:
+        st.markdown(motor_html, unsafe_allow_html=True)
+        st.success("🟢 Motor em Operação")
+    else:
+        st.markdown("🔴 Motor Parado")
