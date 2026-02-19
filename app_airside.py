@@ -10,7 +10,7 @@ st.markdown("### Sistema Profissional de Dimensionamento Elétrico")
 st.divider()
 
 # =====================================================
-# CÁLCULO MOTOR
+# CÁLCULO MOTOR - PADRÃO INDUSTRIAL
 # =====================================================
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
@@ -20,7 +20,10 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
 
     corrente = round((potencia_kw * 1000) / (math.sqrt(3) * tensao * 0.85), 2)
     disj_motor = math.ceil(corrente * 1.25)
-    disj_geral = max(10, math.ceil(disj_motor * 1.3))
+    disj_geral = math.ceil(disj_motor * 1.3)
+
+    if disj_geral < 10:
+        disj_geral = 10
 
     if corrente <= 18:
         cabo = 2.5
@@ -43,28 +46,36 @@ def multifilar_motor(tipo_partida, tensao, motor, disj_geral):
     if tipo_partida == "Inversor":
         return f"Inversor {motor}CV conectado ao motor {motor}CV, DJ Geral {disj_geral}A\n"
     elif tipo_partida == "Direta":
-        return f"Contator AC-3 + Relé Térmico - Motor {motor}CV, DJ {disj_geral}A\n"
+        return f"Contator AC-3 e Relé Térmico conectado ao motor {motor}CV, DJ Geral {disj_geral}A\n"
     elif tipo_partida == "Estrela-Triângulo":
-        return f"3 Contatores + Temporizador Y-Δ - Motor {motor}CV, DJ {disj_geral}A\n"
+        return f"3 Contatores AC-3 + Temporizador Y-Δ conectado ao motor {motor}CV, DJ Geral {disj_geral}A\n"
     elif tipo_partida == "Softstarter":
-        return f"Softstarter - Motor {motor}CV, DJ {disj_geral}A\n"
-    return ""
+        return f"Softstarter conectado ao motor {motor}CV, DJ Geral {disj_geral}A\n"
+    else:
+        return ""
 
 
 # =====================================================
-# RESISTÊNCIA
+# MULTIFILAR RESISTÊNCIA
+# =====================================================
+def multifilar_resistencia(tensao, qtd, pot_unit, corrente_res):
+    return f"{qtd} Resistências {pot_unit}kW ligadas em {tensao}V, Corrente {corrente_res}A\n"
+
+
+# =====================================================
+# FUNÇÕES RESISTÊNCIA
 # =====================================================
 def calcular_resistencia_por_potencia(pot_total, pot_unit, tensao):
     qtd = math.ceil(pot_total / pot_unit)
-    corrente = round((pot_unit * 1000) / tensao, 2)
-    disj = math.ceil(corrente * 1.25)
-    return qtd, corrente, disj
+    corrente_res = round((pot_unit * 1000) / tensao, 2)
+    disj_res = math.ceil(corrente_res * 1.25)
+    return qtd, corrente_res, disj_res
 
 
 def calcular_resistencia_por_quantidade(qtd, pot_unit, tensao):
-    corrente = round((pot_unit * 1000) / tensao, 2)
-    disj = math.ceil(corrente * 1.25)
-    return qtd, corrente, disj
+    corrente_res = round((pot_unit * 1000) / tensao, 2)
+    disj_res = math.ceil(corrente_res * 1.25)
+    return qtd, corrente_res, disj_res
 
 
 # =====================================================
@@ -78,11 +89,13 @@ aba1, aba2, aba3, aba4, aba5 = st.tabs(
 # ABA 1 - DADOS
 # =====================================================
 with aba1:
+
     col1, col2 = st.columns(2)
     cliente = col1.text_input("Nome do Cliente")
     tecnico = col2.text_input("Nome do Técnico")
 
     col3, col4, col5 = st.columns(3)
+
     tipo_partida = col3.selectbox(
         "Tipo de Partida",
         ["Inversor", "Direta", "Estrela-Triângulo", "Softstarter", "Somente Resistência"]
@@ -92,14 +105,25 @@ with aba1:
 
     if tipo_partida != "Somente Resistência":
         vazao = col5.number_input("Vazão (m³/h)", value=5000.0)
-        pressao = st.number_input("Pressão Total (Pa)", value=500.0)
+        pressao = st.number_input("Pressão Total (Pa)", min_value=100.0, value=500.0)
 
     st.divider()
-    usar_resistencia = st.checkbox("Adicionar Resistência")
+
+    st.subheader("🔥 Resistência (Opcional)")
+    usar_resistencia = st.checkbox("Adicionar Resistência ao Sistema")
 
     if usar_resistencia:
+        modo_res = st.radio(
+            "Modo de Cálculo",
+            ["Informar Potência Total", "Informar Quantidade"]
+        )
+
         pot_unit = st.number_input("Potência Unitária (kW)", value=1.75)
-        pot_total = st.number_input("Potência Total (kW)", value=10.5)
+
+        if modo_res == "Informar Potência Total":
+            pot_total = st.number_input("Potência Total Desejada (kW)", value=10.5)
+        else:
+            qtd_res = st.number_input("Quantidade de Resistências", value=6)
 
     calcular = st.button("🔎 Gerar Projeto", use_container_width=True)
 
@@ -108,6 +132,7 @@ with aba1:
 # PROCESSAMENTO
 # =====================================================
 if calcular:
+
     motor_data = None
     res_data = None
 
@@ -115,29 +140,49 @@ if calcular:
         motor_data = calcular_motor(vazao, tensao, pressao)
 
     if usar_resistencia:
-        res_data = calcular_resistencia_por_potencia(pot_total, pot_unit, tensao)
+        if modo_res == "Informar Potência Total":
+            res_data = calcular_resistencia_por_potencia(pot_total, pot_unit, tensao)
+        else:
+            res_data = calcular_resistencia_por_quantidade(qtd_res, pot_unit, tensao)
 
-    st.session_state.motor = motor_data
-    st.session_state.res = res_data
-    st.session_state.tipo = tipo_partida
+    st.session_state.update({
+        "cliente": cliente,
+        "tecnico": tecnico,
+        "tipo": tipo_partida,
+        "tensao": tensao,
+        "vazao": vazao if tipo_partida != "Somente Resistência" else None,
+        "pressao": pressao if tipo_partida != "Somente Resistência" else None,
+        "motor": motor_data,
+        "res": res_data,
+        "pot_unit": pot_unit if usar_resistencia else None
+    })
 
 
 # =====================================================
 # ABA 2 - RESULTADO
 # =====================================================
 with aba2:
+
     if "motor" in st.session_state and st.session_state.motor:
-        motor, corrente, dj_motor, dj_geral, cabo = st.session_state.motor
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.motor
         st.metric("Motor (CV)", motor)
         st.metric("Corrente (A)", corrente)
-        st.metric("DJ Geral (A)", dj_geral)
+        st.metric("DJ Motor (A)", disj_motor)
+        st.metric("DJ Geral (A)", disj_geral)
         st.metric("Cabo (mm²)", cabo)
 
+    if "res" in st.session_state and st.session_state.res:
+        qtd, corrente_res, disj_res = st.session_state.res
+        st.metric("Qtd Resistências", qtd)
+        st.metric("Corrente Resistência (A)", corrente_res)
+        st.metric("DJ Resistência (A)", disj_res)
+
 
 # =====================================================
-# ABA 5 - SIMULADOR MELHORADO
+# ABA 5 - SIMULADOR (EXATAMENTE COMO VOCÊ TINHA)
 # =====================================================
 with aba5:
+
     st.subheader("🎛️ Simulador Industrial - Inversor + CLP")
 
     rpm_max = 3600
@@ -154,11 +199,15 @@ with aba5:
     pressao_total = pressao_motor + contrapressao
 
     erro = setpoint - pressao_total
-    rpm += erro * 0.4
+    ganho = 0.4
+    rpm += erro * ganho
     rpm = max(0, min(rpm, rpm_max))
     st.session_state.rpm_auto = rpm
 
-    pressao_total = round((rpm / rpm_max) * 500 + contrapressao, 1)
+    pressao_motor = (rpm / rpm_max) * 500
+    pressao_total = round(pressao_motor + contrapressao, 1)
+
+    st.divider()
 
     col1, col2, col3 = st.columns(3)
     col1.metric("RPM Atual", int(rpm))
@@ -167,20 +216,22 @@ with aba5:
 
     st.progress(rpm / rpm_max)
 
+    st.divider()
     st.subheader("🌀 Motor")
 
-    velocidade = max(0.2, 5 - (rpm / rpm_max) * 4.5)
+    velocidade_animacao = max(0.2, 5 - (rpm / rpm_max) * 4.5)
 
     motor_html = f"""
-    <div style="display:flex; justify-content:center;">
+    <div style="display:flex; justify-content:center; align-items:center;">
         <div style="
             width:150px;
             height:150px;
             border-radius:50%;
             border:8px solid #1f77b4;
-            animation: spin {velocidade}s linear infinite;
+            animation: spin {velocidade_animacao}s linear infinite;
         "></div>
     </div>
+
     <style>
     @keyframes spin {{
         from {{ transform: rotate(0deg); }}
@@ -193,4 +244,4 @@ with aba5:
         st.markdown(motor_html, unsafe_allow_html=True)
         st.success("🟢 Motor em Operação")
     else:
-        st.error("🔴 Motor Parado")
+        st.markdown("🔴 Motor Parado")
