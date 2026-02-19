@@ -127,99 +127,65 @@ with aba4:
 # ABA 5 - SIMULADOR COMPLETO
 # =====================================================
 
-with aba5:
+ elif aba == "🎛️ Simulador":
 
-    st.subheader("🎛️ Simulador Industrial - Inversor + CLP")
+    st.markdown("### 🎛️ Simulador Industrial - Inversor + CLP")
 
-    rpm_max = 3600
-    setpoint = st.number_input("Pressão Alvo (Pa)", 100, 1000, 500)
-    sujidade = st.slider("Sujidade do Filtro (%)", 0, 100, 0)
+    pressao_alvo = st.number_input("Pressão Alvo (Pa)", value=500.0)
 
-    if "rpm_auto" not in st.session_state:
-        st.session_state.rpm_auto = 1200
+    sujidade = st.slider("Sujidade do Filtro (%)", 0, 100, 20)
 
-    rpm = st.session_state.rpm_auto
+    # --- Cálculo da pressão simulada ---
+    pressao_total = 600 - (sujidade * 4)
+    erro = pressao_alvo - pressao_total
 
-    pressao_motor = (rpm / rpm_max) * 500
-    contrapressao = sujidade * 5
-    pressao_total = pressao_motor + contrapressao
+    # --- Controle simples estilo CLP ---
+    rpm = max(0, min(1800, int(erro * 3 + 900)))
 
-    erro = setpoint - pressao_total
-    rpm += erro * 0.4
-    rpm = max(0, min(rpm, rpm_max))
-    st.session_state.rpm_auto = rpm
+    motor_ligado = True
+    if pressao_total < 150:
+        motor_ligado = False
 
-    pressao_total = round((rpm / rpm_max) * 500 + contrapressao, 1)
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("RPM Atual", int(rpm))
-    col2.metric("Pressão Total (Pa)", pressao_total)
-    col3.metric("Erro", round(erro, 1))
-
-    st.progress(rpm / rpm_max)
-
-    # ================= PRESSOSTATOS =================
-
-    p1_on = st.number_input("P1 Ativar (Pa)", 0, 2000, 700)
-    p1_off = st.number_input("P1 Desativar (Pa)", 0, 2000, 600)
-    p2_on = st.number_input("P2 Crítico (Pa)", 0, 2000, 900)
-    p2_off = st.number_input("P2 Reset (Pa)", 0, 2000, 800)
-
-    if "p1_estado" not in st.session_state:
-        st.session_state.p1_estado = False
-    if "p2_estado" not in st.session_state:
-        st.session_state.p2_estado = False
-
-    if pressao_total >= p1_on:
-        st.session_state.p1_estado = True
-    elif pressao_total <= p1_off:
-        st.session_state.p1_estado = False
-
-    if pressao_total >= p2_on:
-        st.session_state.p2_estado = True
-    elif pressao_total <= p2_off:
-        st.session_state.p2_estado = False
-
-    motor_ligado = not st.session_state.p2_estado
-
-    st.write(f"- Pressostato 1: {'🟡 Alarme' if st.session_state.p1_estado else '🟢 Normal'}")
-    st.write(f"- Pressostato 2: {'🔴 Crítico' if st.session_state.p2_estado else '🟢 Normal'}")
-
-    if not motor_ligado:
-        st.session_state.rpm_auto = 0
-        rpm = 0
-        st.error("🚨 Pressão Crítica! CLP Desligando Motor!")
-
-    # ================= MOTOR ANIMADO =================
+    st.write("RPM Atual:", rpm)
+    st.write("Pressão Total (Pa):", round(pressao_total,1))
+    st.write("Erro:", round(erro,1))
 
     st.markdown("### 🌀 Motor")
 
+    # --- VELOCIDADE DA ANIMAÇÃO BASEADA NO RPM ---
     if motor_ligado and rpm > 0:
 
-        velocidade_animacao = max(0.2, 3 - (rpm / rpm_max) * 2.5)
+        # Quanto maior RPM, mais rápido gira
+        velocidade = max(0.2, 2 - (rpm / 1200))
 
         st.markdown(f"""
         <style>
+        .motor-container {{
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            margin-top:20px;
+        }}
+
         .motor {{
-            width:120px;
-            height:120px;
-            border:6px solid #2ecc71;
+            width:140px;
+            height:140px;
+            border:8px solid #2ecc71;
             border-radius:50%;
-            margin:auto;
             position:relative;
-            animation: spin {velocidade_animacao}s linear infinite;
+            animation: spin {velocidade}s linear infinite;
         }}
 
         .motor::after {{
             content:"";
             position:absolute;
-            width:6px;
-            height:50px;
+            width:8px;
+            height:60px;
             background:#2ecc71;
-            top:10px;
+            top:15px;
             left:50%;
             transform:translateX(-50%);
-            border-radius:3px;
+            border-radius:4px;
         }}
 
         @keyframes spin {{
@@ -227,7 +193,9 @@ with aba5:
         }}
         </style>
 
-        <div class="motor"></div>
+        <div class="motor-container">
+            <div class="motor"></div>
+        </div>
         """, unsafe_allow_html=True)
 
         st.success("🟢 Motor em Operação")
@@ -235,13 +203,20 @@ with aba5:
     else:
 
         st.markdown("""
-        <div style="
-            width:120px;
-            height:120px;
-            border:6px solid #e74c3c;
+        <style>
+        .motor-off {
+            width:140px;
+            height:140px;
+            border:8px solid #e74c3c;
             border-radius:50%;
             margin:auto;
-        "></div>
+            margin-top:20px;
+        }
+        </style>
+
+        <div class="motor-off"></div>
         """, unsafe_allow_html=True)
 
-        st.error("🔴 Motor Parado")
+        st.error("🔴 Motor Desligado")
+    
+        
