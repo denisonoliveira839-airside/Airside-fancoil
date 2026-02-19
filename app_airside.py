@@ -10,7 +10,7 @@ st.markdown("### Sistema Profissional de Dimensionamento Elétrico")
 st.divider()
 
 # =====================================================
-# CÁLCULO MOTOR - PADRÃO INDUSTRIAL
+# CÁLCULO MOTOR
 # =====================================================
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
@@ -20,10 +20,7 @@ def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
 
     corrente = round((potencia_kw * 1000) / (math.sqrt(3) * tensao * 0.85), 2)
     disj_motor = math.ceil(corrente * 1.25)
-    disj_geral = math.ceil(disj_motor * 1.3)
-
-    if disj_geral < 10:
-        disj_geral = 10
+    disj_geral = max(10, math.ceil(disj_motor * 1.3))
 
     if corrente <= 18:
         cabo = 2.5
@@ -51,8 +48,7 @@ def multifilar_motor(tipo_partida, tensao, motor, disj_geral):
         return f"3 Contatores AC-3 + Temporizador Y-Δ conectado ao motor {motor}CV, DJ Geral {disj_geral}A\n"
     elif tipo_partida == "Softstarter":
         return f"Softstarter conectado ao motor {motor}CV, DJ Geral {disj_geral}A\n"
-    else:
-        return ""
+    return ""
 
 
 # =====================================================
@@ -63,7 +59,7 @@ def multifilar_resistencia(tensao, qtd, pot_unit, corrente_res):
 
 
 # =====================================================
-# FUNÇÕES RESISTÊNCIA
+# RESISTÊNCIA
 # =====================================================
 def calcular_resistencia_por_potencia(pot_total, pot_unit, tensao):
     qtd = math.ceil(pot_total / pot_unit)
@@ -108,16 +104,14 @@ with aba1:
         pressao = st.number_input("Pressão Total (Pa)", min_value=100.0, value=500.0)
 
     st.divider()
-
     st.subheader("🔥 Resistência (Opcional)")
-    usar_resistencia = st.checkbox("Adicionar Resistência ao Sistema")
+    usar_resistencia = st.checkbox("Adicionar Resistência")
 
     if usar_resistencia:
         modo_res = st.radio(
             "Modo de Cálculo",
             ["Informar Potência Total", "Informar Quantidade"]
         )
-
         pot_unit = st.number_input("Potência Unitária (kW)", value=1.75)
 
         if modo_res == "Informar Potência Total":
@@ -146,14 +140,9 @@ if calcular:
             res_data = calcular_resistencia_por_quantidade(qtd_res, pot_unit, tensao)
 
     st.session_state.update({
-        "cliente": cliente,
-        "tecnico": tecnico,
-        "tipo": tipo_partida,
-        "tensao": tensao,
-        "vazao": vazao if tipo_partida != "Somente Resistência" else None,
-        "pressao": pressao if tipo_partida != "Somente Resistência" else None,
         "motor": motor_data,
         "res": res_data,
+        "tipo": tipo_partida,
         "pot_unit": pot_unit if usar_resistencia else None
     })
 
@@ -162,7 +151,6 @@ if calcular:
 # ABA 2 - RESULTADO
 # =====================================================
 with aba2:
-
     if "motor" in st.session_state and st.session_state.motor:
         motor, corrente, disj_motor, disj_geral, cabo = st.session_state.motor
         st.metric("Motor (CV)", motor)
@@ -171,15 +159,9 @@ with aba2:
         st.metric("DJ Geral (A)", disj_geral)
         st.metric("Cabo (mm²)", cabo)
 
-    if "res" in st.session_state and st.session_state.res:
-        qtd, corrente_res, disj_res = st.session_state.res
-        st.metric("Qtd Resistências", qtd)
-        st.metric("Corrente Resistência (A)", corrente_res)
-        st.metric("DJ Resistência (A)", disj_res)
-
 
 # =====================================================
-# ABA 5 - SIMULADOR (EXATAMENTE COMO VOCÊ TINHA)
+# ABA 5 - SIMULADOR COMPLETO
 # =====================================================
 with aba5:
 
@@ -199,13 +181,11 @@ with aba5:
     pressao_total = pressao_motor + contrapressao
 
     erro = setpoint - pressao_total
-    ganho = 0.4
-    rpm += erro * ganho
+    rpm += erro * 0.4
     rpm = max(0, min(rpm, rpm_max))
     st.session_state.rpm_auto = rpm
 
-    pressao_motor = (rpm / rpm_max) * 500
-    pressao_total = round(pressao_motor + contrapressao, 1)
+    pressao_total = round((rpm / rpm_max) * 500 + contrapressao, 1)
 
     st.divider()
 
@@ -217,21 +197,54 @@ with aba5:
     st.progress(rpm / rpm_max)
 
     st.divider()
+
+    # PRESSOSTATOS
+    p1_on = st.number_input("P1 Ativar (Pa)", 0, 2000, 700)
+    p1_off = st.number_input("P1 Desativar (Pa)", 0, 2000, 600)
+    p2_on = st.number_input("P2 Crítico (Pa)", 0, 2000, 900)
+    p2_off = st.number_input("P2 Reset (Pa)", 0, 2000, 800)
+
+    if "p1_estado" not in st.session_state:
+        st.session_state.p1_estado = False
+    if "p2_estado" not in st.session_state:
+        st.session_state.p2_estado = False
+
+    if pressao_total >= p1_on:
+        st.session_state.p1_estado = True
+    elif pressao_total <= p1_off:
+        st.session_state.p1_estado = False
+
+    if pressao_total >= p2_on:
+        st.session_state.p2_estado = True
+    elif pressao_total <= p2_off:
+        st.session_state.p2_estado = False
+
+    p1 = st.session_state.p1_estado
+    p2 = st.session_state.p2_estado
+
+    st.markdown(f"- Pressostato 1: {'🟡 Alarme' if p1 else '🟢 Normal'}")
+    st.markdown(f"- Pressostato 2: {'🔴 Crítico' if p2 else '🟢 Normal'}")
+
+    if p2:
+        st.error("🚨 Pressão Crítica! CLP Desligando Motor!")
+        st.session_state.rpm_auto = 0
+        rpm = 0
+
+    st.divider()
     st.subheader("🌀 Motor")
 
-    velocidade_animacao = max(0.2, 5 - (rpm / rpm_max) * 4.5)
+    velocidade = max(0.2, 5 - (rpm / rpm_max) * 4.5)
 
     motor_html = f"""
-    <div style="display:flex; justify-content:center; align-items:center;">
+    <div style="display:flex; justify-content:center;">
         <div style="
             width:150px;
             height:150px;
             border-radius:50%;
             border:8px solid #1f77b4;
-            animation: spin {velocidade_animacao}s linear infinite;
+            animation: spin {velocidade}s linear infinite;
         "></div>
     </div>
-
     <style>
     @keyframes spin {{
         from {{ transform: rotate(0deg); }}
