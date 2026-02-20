@@ -1,195 +1,233 @@
 import streamlit as st
 import math
+from datetime import datetime
 
 st.set_page_config(page_title="AirSide PRO", layout="wide")
 
-# ===============================
-# CSS GLOBAL (Motor + Estilo)
-# ===============================
+st.title("🌀 AirSide PRO")
+st.subheader("Sistema Profissional de Dimensionamento Elétrico")
+st.divider()
 
-st.markdown("""
-<style>
-.motor-container {
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    margin-top:20px;
-}
+# =====================================================
+# FUNÇÕES
+# =====================================================
 
-.motor {
-    width:140px;
-    height:140px;
-    border:8px solid #2ecc71;
-    border-radius:50%;
-    position:relative;
-}
+def calcular_motor(vazao, tensao, pressao):
+    potencia_w = (vazao * pressao) / 3600
+    potencia_cv = potencia_w / 735.5
+    corrente = potencia_w / (math.sqrt(3) * tensao * 0.85)
 
-.motor::after {
-    content:"";
-    position:absolute;
-    width:8px;
-    height:60px;
-    background:#2ecc71;
-    top:15px;
-    left:50%;
-    transform:translateX(-50%);
-    border-radius:4px;
-}
+    return {
+        "potencia_w": potencia_w,
+        "potencia_cv": potencia_cv,
+        "corrente": corrente
+    }
 
-.motor-off {
-    width:140px;
-    height:140px;
-    border:8px solid #e74c3c;
-    border-radius:50%;
-    margin:auto;
-    margin-top:20px;
-}
+def gerar_cabecalho(cliente, tecnico, tensao, tipo_partida, vazao, pressao):
+    data = datetime.now().strftime("%d/%m/%Y")
+    return f"""
+Cliente: {cliente}
+Técnico: {tecnico}
+Data: {data}
+Tipo de Partida: {tipo_partida}
+Tensão: {tensao}V
+Vazão: {vazao} m³/h
+Pressão: {pressao} Pa
+"""
 
-@keyframes spin {
-    100% { transform: rotate(360deg); }
-}
-</style>
-""", unsafe_allow_html=True)
+# =====================================================
+# ABAS
+# =====================================================
 
-# ===============================
-# MENU LATERAL
-# ===============================
-
-st.sidebar.title("🌀 AirSide PRO")
-aba = st.sidebar.radio(
-    "Navegação",
+aba1, aba2, aba3, aba4, aba5 = st.tabs(
     ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais", "🎛️ Simulador"]
 )
 
-# ===============================
+# =====================================================
 # ABA 1 - DADOS
-# ===============================
+# =====================================================
 
-if aba == "📋 Dados":
+with aba1:
 
-    st.title("📋 Dados do Sistema")
+    cliente = st.text_input("Cliente")
+    tecnico = st.text_input("Técnico")
+    tensao = st.selectbox("Tensão (V)", [220, 380, 440])
+    tipo_partida = st.selectbox("Tipo de Partida", ["Direta", "Soft Starter", "Inversor"])
 
-    vazao = st.number_input("Vazão (m³/h)", value=5000.0)
-    pressao = st.number_input("Pressão (Pa)", value=500.0)
-    rendimento = st.slider("Rendimento (%)", 50, 100, 85)
+    vazao = st.number_input("Vazão (m³/h)", value=5000)
+    pressao = st.number_input("Pressão (Pa)", value=400)
 
-    st.session_state["vazao"] = vazao
-    st.session_state["pressao"] = pressao
-    st.session_state["rendimento"] = rendimento
+    if st.button("Calcular"):
 
+        motor_data = calcular_motor(vazao, tensao, pressao)
 
-# ===============================
+        st.session_state.update({
+            "cliente": cliente,
+            "tecnico": tecnico,
+            "tipo": tipo_partida,
+            "tensao": tensao,
+            "vazao": vazao,
+            "pressao": pressao,
+            "motor": motor_data
+        })
+
+# =====================================================
 # ABA 2 - RESULTADO
-# ===============================
+# =====================================================
 
-elif aba == "📊 Resultado":
+with aba2:
 
-    st.title("📊 Resultado")
+    if "motor" in st.session_state:
 
-    vazao = st.session_state.get("vazao", 5000)
-    pressao = st.session_state.get("pressao", 500)
-    rendimento = st.session_state.get("rendimento", 85)
+        motor = st.session_state.motor
 
-    potencia = (vazao * pressao) / (367 * rendimento)
+        st.write("### 🌀 Motor")
+        st.write(f"Potência: {motor['potencia_cv']:.2f} CV")
+        st.write(f"Corrente: {motor['corrente']:.2f} A")
 
-    st.metric("Potência Estimada (kW)", round(potencia, 2))
-
-
-# ===============================
+# =====================================================
 # ABA 3 - MULTIFILAR
-# ===============================
+# =====================================================
 
-elif aba == "📑 Multifilar":
+with aba3:
 
-    st.title("📑 Diagrama Multifilar")
+    if "motor" in st.session_state:
 
-    st.write("Motor Trifásico 380V")
-    st.write("Disjuntor Motor")
-    st.write("Contator")
-    st.write("Relé Térmico")
-    st.write("Inversor de Frequência")
+        texto = gerar_cabecalho(
+            st.session_state.cliente,
+            st.session_state.tecnico,
+            st.session_state.tensao,
+            st.session_state.tipo,
+            st.session_state.vazao,
+            st.session_state.pressao
+        )
 
+        texto += "\n--- MOTOR ---\n"
+        texto += f"Potência CV: {st.session_state.motor['potencia_cv']:.2f}\n"
+        texto += f"Corrente: {st.session_state.motor['corrente']:.2f} A\n"
 
-# ===============================
+        st.text_area("Diagrama Multifilar", texto, height=300)
+
+# =====================================================
 # ABA 4 - MATERIAIS
-# ===============================
+# =====================================================
 
-elif aba == "📦 Materiais":
+with aba4:
 
-    st.title("📦 Lista de Materiais")
+    if "motor" in st.session_state:
 
-    materiais = [
-        "Motor Trifásico",
-        "Inversor de Frequência",
-        "Disjuntor Motor",
-        "Contator",
-        "Relé Térmico",
-        "Pressostato 1",
-        "Pressostato 2",
-        "CLP Industrial"
-    ]
+        corrente = st.session_state.motor["corrente"]
 
-    for item in materiais:
-        st.write("•", item)
+        st.write("### 📦 Lista de Materiais")
+        st.write(f"- Disjuntor Tripolar {round(corrente*1.25)} A")
+        st.write("- Cabo 6 mm²")
+        st.write("- Contator AC-3")
 
+# =====================================================
+# ABA 5 - SIMULADOR COMPLETO
+# =====================================================
 
-# ===============================
-# ABA 5 - SIMULADOR
-# ===============================
+with aba5:
 
-elif aba == "🎛️ Simulador":
+    st.subheader("🎛️ Simulador Industrial - Inversor + CLP")
 
-    st.title("🎛️ Simulador Industrial - Inversor + CLP")
+    rpm_max = 3600
+    setpoint = st.number_input("Pressão Alvo (Pa)", 100, 1000, 500)
+    sujidade = st.slider("Sujidade do Filtro (%)", 0, 100, 0)
 
-    pressao_alvo = st.number_input("Pressão Alvo (Pa)", value=500.0)
-    sujidade = st.slider("Sujidade do Filtro (%)", 0, 100, 20)
+    if "rpm_auto" not in st.session_state:
+        st.session_state.rpm_auto = 1200
 
-    # Simulação de pressão
-    pressao_total = 700 - (sujidade * 5)
-    erro = pressao_alvo - pressao_total
+    rpm = st.session_state.rpm_auto
 
-    # Controle tipo CLP
-    rpm = max(0, min(1800, int(erro * 3 + 900)))
+    pressao_motor = (rpm / rpm_max) * 500
+    contrapressao = sujidade * 5
+    pressao_total = pressao_motor + contrapressao
 
-    # Pressostatos
-    p1_ativar = 450
-    p1_desativar = 500
-    p2_critico = 650
-    p2_reset = 600
+    erro = setpoint - pressao_total
+    rpm += erro * 0.4
+    rpm = max(0, min(rpm, rpm_max))
+    st.session_state.rpm_auto = rpm
 
-    st.write("RPM Atual:", rpm)
-    st.write("Pressão Total (Pa):", round(pressao_total, 1))
-    st.write("Erro:", round(erro, 1))
+    pressao_total = round((rpm / rpm_max) * 500 + contrapressao, 1)
 
-    st.subheader("Pressostatos")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("RPM Atual", int(rpm))
+    col2.metric("Pressão Total (Pa)", pressao_total)
+    col3.metric("Erro", round(erro, 1))
 
-    if pressao_total >= p2_critico:
-        st.error("🔴 Pressostato 2: CRÍTICO")
+    st.progress(rpm / rpm_max)
+
+    # ================= PRESSOSTATOS =================
+
+    p1_on = st.number_input("P1 Ativar (Pa)", 0, 2000, 700)
+    p1_off = st.number_input("P1 Desativar (Pa)", 0, 2000, 600)
+    p2_on = st.number_input("P2 Crítico (Pa)", 0, 2000, 900)
+    p2_off = st.number_input("P2 Reset (Pa)", 0, 2000, 800)
+
+    if "p1_estado" not in st.session_state:
+        st.session_state.p1_estado = False
+    if "p2_estado" not in st.session_state:
+        st.session_state.p2_estado = False
+
+    if pressao_total >= p1_on:
+        st.session_state.p1_estado = True
+    elif pressao_total <= p1_off:
+        st.session_state.p1_estado = False
+
+    if pressao_total >= p2_on:
+        st.session_state.p2_estado = True
+    elif pressao_total <= p2_off:
+        st.session_state.p2_estado = False
+
+    motor_ligado = not st.session_state.p2_estado
+
+    st.write(f"- Pressostato 1: {'🟡 Alarme' if st.session_state.p1_estado else '🟢 Normal'}")
+    st.write(f"- Pressostato 2: {'🔴 Crítico' if st.session_state.p2_estado else '🟢 Normal'}")
+
+    if not motor_ligado:
+        st.session_state.rpm_auto = 0
+        rpm = 0
         st.error("🚨 Pressão Crítica! CLP Desligando Motor!")
-        motor_ligado = False
 
-    elif pressao_total >= p1_ativar:
-        st.warning("🟡 Pressostato 1: Alarme")
-        motor_ligado = True
-
-    else:
-        st.success("🟢 Pressão Normal")
-        motor_ligado = True
-
-    # ===============================
-    # MOTOR COM ANIMAÇÃO
-    # ===============================
+    # ================= MOTOR ANIMADO =================
 
     st.markdown("### 🌀 Motor")
 
     if motor_ligado and rpm > 0:
 
-        velocidade = max(0.2, 2 - (rpm / 1200))
+        velocidade_animacao = max(0.2, 3 - (rpm / rpm_max) * 2.5)
 
         st.markdown(f"""
-        <div class="motor-container">
-            <div class="motor" style="animation: spin {velocidade}s linear infinite;"></div>
-        </div>
+        <style>
+        .motor {{
+            width:120px;
+            height:120px;
+            border:6px solid #2ecc71;
+            border-radius:50%;
+            margin:auto;
+            position:relative;
+            animation: spin {velocidade_animacao}s linear infinite;
+        }}
+
+        .motor::after {{
+            content:"";
+            position:absolute;
+            width:6px;
+            height:50px;
+            background:#2ecc71;
+            top:10px;
+            left:50%;
+            transform:translateX(-50%);
+            border-radius:3px;
+        }}
+
+        @keyframes spin {{
+            100% {{ transform: rotate(360deg); }}
+        }}
+        </style>
+
+        <div class="motor"></div>
         """, unsafe_allow_html=True)
 
         st.success("🟢 Motor em Operação")
@@ -197,9 +235,13 @@ elif aba == "🎛️ Simulador":
     else:
 
         st.markdown("""
-        <div class="motor-container">
-            <div class="motor-off"></div>
-        </div>
+        <div style="
+            width:120px;
+            height:120px;
+            border:6px solid #e74c3c;
+            border-radius:50%;
+            margin:auto;
+        "></div>
         """, unsafe_allow_html=True)
 
-        st.error("🔴 Motor Desligado")
+        st.error("🔴 Motor Parado")
