@@ -198,6 +198,39 @@ with aba5:
 
     st.divider()
 
+    # PRESSOSTATOS
+    p1_on = st.number_input("P1 Ativar (Pa)", 0, 2000, 700)
+    p1_off = st.number_input("P1 Desativar (Pa)", 0, 2000, 600)
+    p2_on = st.number_input("P2 Crítico (Pa)", 0, 2000, 900)
+    p2_off = st.number_input("P2 Reset (Pa)", 0, 2000, 800)
+
+    if "p1_estado" not in st.session_state:
+        st.session_state.p1_estado = False
+    if "p2_estado" not in st.session_state:
+        st.session_state.p2_estado = False
+
+    if pressao_total >= p1_on:
+        st.session_state.p1_estado = True
+    elif pressao_total <= p1_off:
+        st.session_state.p1_estado = False
+
+    if pressao_total >= p2_on:
+        st.session_state.p2_estado = True
+    elif pressao_total <= p2_off:
+        st.session_state.p2_estado = False
+
+    p1 = st.session_state.p1_estado
+    p2 = st.session_state.p2_estado
+
+    st.markdown(f"- Pressostato 1: {'🟡 Alarme' if p1 else '🟢 Normal'}")
+    st.markdown(f"- Pressostato 2: {'🔴 Crítico' if p2 else '🟢 Normal'}")
+
+    if p2:
+        st.error("🚨 Pressão Crítica! CLP Desligando Motor!")
+        st.session_state.rpm_auto = 0
+        rpm = 0
+
+    st.divider()
     st.subheader("🌀 Motor")
 
     velocidade = max(0.2, 5 - (rpm / rpm_max) * 4.5)
@@ -209,20 +242,8 @@ with aba5:
             height:150px;
             border-radius:50%;
             border:8px solid #1f77b4;
-            position:relative;
             animation: spin {velocidade}s linear infinite;
-        ">
-            <div style="
-                position:absolute;
-                width:6px;
-                height:60px;
-                background:white;
-                top:15px;
-                left:50%;
-                transform:translateX(-50%);
-                border-radius:3px;
-            "></div>
-        </div>
+        "></div>
     </div>
     <style>
     @keyframes spin {{
