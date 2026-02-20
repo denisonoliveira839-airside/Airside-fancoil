@@ -7,9 +7,7 @@ st.set_page_config(page_title="AirSide PRO", layout="wide")
 
 st.title("🌀 AirSide PRO")
 st.markdown("### Sistema Profissional de Dimensionamento Elétrico")
-st.divider()
-
-=====================================================
+st.divider() 
 
 CÁLCULO MOTOR
 
