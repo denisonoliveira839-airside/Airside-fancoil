@@ -86,7 +86,7 @@ with aba2:
         st.write(f"Corrente: {motor['corrente']:.2f} A")
 
 # =====================================================
-# ABA 3 - MULTIFILAR
+# ABA 3 - MULTIFILAR (CORRIGIDA)
 # =====================================================
 
 with aba3:
@@ -119,12 +119,12 @@ with aba4:
         corrente = st.session_state.motor["corrente"]
 
         st.write("### 📦 Lista de Materiais")
-        st.write(f"- Disjuntor Tripolar {round(corrente*1.25)} A")
+        st.write(f"- Disjuntor Tripolar {round(corrente * 1.25)} A")
         st.write("- Cabo 6 mm²")
         st.write("- Contator AC-3")
 
 # =====================================================
-# ABA 5 - SIMULADOR COMPLETO
+# ABA 5 - SIMULADOR (INALTERADO)
 # =====================================================
 
 with aba5:
@@ -158,7 +158,7 @@ with aba5:
 
     st.progress(rpm / rpm_max)
 
-    # ================= PRESSOSTATOS =================
+    # PRESSOSTATOS
 
     p1_on = st.number_input("P1 Ativar (Pa)", 0, 2000, 700)
     p1_off = st.number_input("P1 Desativar (Pa)", 0, 2000, 600)
@@ -190,7 +190,7 @@ with aba5:
         rpm = 0
         st.error("🚨 Pressão Crítica! CLP Desligando Motor!")
 
-    # ================= MOTOR ANIMADO =================
+    # MOTOR ANIMADO
 
     st.markdown("### 🌀 Motor")
 
