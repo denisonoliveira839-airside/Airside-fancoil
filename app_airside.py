@@ -7,10 +7,12 @@ st.set_page_config(page_title="AirSide PRO", layout="wide")
 
 st.title("🌀 AirSide PRO")
 st.markdown("### Sistema Profissional de Dimensionamento Elétrico")
-st.divider() 
+st.divider()
+
+=====================================================
 
 CÁLCULO MOTOR
-#
+
 =====================================================
 
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
