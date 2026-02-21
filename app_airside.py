@@ -183,3 +183,181 @@ if calcular:
         "res": res_data,
         "pot_unit": pot_unit if usar_resistencia else None
     })
+# =====================================================
+# ABA 2 - RESULTADO
+# =====================================================
+
+with aba2:
+    if "motor" in st.session_state and st.session_state["motor"]:
+
+        st.subheader("⚙️ Resultado do Motor")
+
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state["motor"]
+
+        st.write(f"Potência do Motor: **{motor} CV**")
+        st.write(f"Corrente Nominal: **{corrente} A**")
+        st.write(f"Disjuntor Motor: **{disj_motor} A**")
+        st.write(f"Disjuntor Geral: **{disj_geral} A**")
+        st.write(f"Cabo Recomendado: **{cabo} mm²**")
+
+    if "res" in st.session_state and st.session_state["res"]:
+
+        st.subheader("🔥 Resultado das Resistências")
+
+        qtd, corrente_total, disj_res = st.session_state["res"]
+
+        st.write(f"Quantidade: **{qtd} un**")
+        st.write(f"Corrente Total: **{corrente_total} A**")
+        st.write(f"Disjuntor Resistência: **{disj_res} A**")
+
+
+# =====================================================
+# ABA 3 - MULTIFILAR
+# =====================================================
+
+with aba3:
+    if "motor" in st.session_state and st.session_state["motor"]:
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state["motor"]
+        texto_motor = multifilar_motor(
+            st.session_state["tipo"],
+            st.session_state["tensao"],
+            motor,
+            disj_geral
+        )
+        st.text(texto_motor)
+
+    if "res" in st.session_state and st.session_state["res"]:
+        qtd, corrente_total, disj_res = st.session_state["res"]
+        texto_res = multifilar_resistencia(
+            st.session_state["tensao"],
+            qtd,
+            st.session_state["pot_unit"],
+            corrente_total
+        )
+        st.text(texto_res)
+
+
+# =====================================================
+# ABA 4 - MATERIAIS
+# =====================================================
+
+with aba4:
+    lista = []
+
+    if "motor" in st.session_state and st.session_state["motor"]:
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state["motor"]
+
+        lista.append({"Item": "Disjuntor Geral", "Especificação": f"{disj_geral} A"})
+        lista.append({"Item": "Disjuntor Motor", "Especificação": f"{disj_motor} A"})
+        lista.append({"Item": "Cabo", "Especificação": f"{cabo} mm²"})
+        lista.append({"Item": "Motor", "Especificação": f"{motor} CV"})
+
+        if st.session_state["tipo"] == "Inversor":
+            lista.append({"Item": "Inversor de Frequência", "Especificação": f"{motor} CV"})
+        elif st.session_state["tipo"] == "Softstarter":
+            lista.append({"Item": "Softstarter", "Especificação": f"{motor} CV"})
+        elif st.session_state["tipo"] == "Direta":
+            lista.append({"Item": "Contator", "Especificação": f"{motor} CV"})
+        elif st.session_state["tipo"] == "Estrela-Triângulo":
+            lista.append({"Item": "3 Contatores", "Especificação": f"{motor} CV"})
+
+    if "res" in st.session_state and st.session_state["res"]:
+        qtd, corrente_total, disj_res = st.session_state["res"]
+
+        lista.append({"Item": "Disjuntor Resistência", "Especificação": f"{disj_res} A"})
+        lista.append({"Item": "Resistências", "Especificação": f"{qtd} un"})
+
+    if lista:
+        df = pd.DataFrame(lista)
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("Nenhum material calculado ainda.")
+
+
+# =====================================================
+# ABA 5 - SIMULADOR
+# =====================================================
+
+with aba5:
+    st.subheader("🎛️ Simulação Visual do Motor")
+
+    if "motor" in st.session_state and st.session_state["motor"]:
+
+        fig, ax = plt.subplots()
+        circle = plt.Circle((0.5, 0.5), 0.3)
+        ax.add_patch(circle)
+        ax.set_xlim(0,1)
+        ax.set_ylim(0,1)
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title("Motor em Operação")
+
+        st.pyplot(fig)
+
+    else:
+        st.info("Calcule um projeto para visualizar o simulador.")
+
+
+# =====================================================
+# ABA 6 - CLIENTES
+# =====================================================
+
+with aba6:
+    st.subheader("👥 Cadastro de Clientes")
+
+    novo_cliente = st.text_input("Nome do Cliente")
+    novo_tecnico = st.text_input("Técnico Responsável")
+
+    if st.button("Salvar Cliente"):
+        conn = conectar()
+        c = conn.cursor()
+        c.execute("INSERT INTO clientes (nome, tecnico, data) VALUES (?, ?, ?)",
+                  (novo_cliente, novo_tecnico, datetime.now().strftime("%d/%m/%Y")))
+        conn.commit()
+        conn.close()
+        st.success("Cliente salvo com sucesso!")
+
+    conn = conectar()
+    df_clientes = pd.read_sql_query("SELECT * FROM clientes", conn)
+    conn.close()
+    st.dataframe(df_clientes, use_container_width=True)
+
+
+# =====================================================
+# ABA 7 - PROJETOS
+# =====================================================
+
+with aba7:
+    st.subheader("📁 Histórico de Projetos")
+
+    conn = conectar()
+    df_proj = pd.read_sql_query("SELECT * FROM projetos", conn)
+    conn.close()
+
+    st.dataframe(df_proj, use_container_width=True)
+
+
+# =====================================================
+# ABA 8 - ORÇAMENTO
+# =====================================================
+
+with aba8:
+    st.subheader("💰 Orçamento Técnico")
+
+    margem = st.slider("Margem de Lucro (%)", 0, 100, 30)
+
+    valor_base = 0
+
+    if "motor" in st.session_state and st.session_state["motor"]:
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state["motor"]
+        valor_base += motor * 500
+
+    if "res" in st.session_state and st.session_state["res"]:
+        qtd, corrente_total, disj_res = st.session_state["res"]
+        valor_base += qtd * 150
+
+    valor_final = valor_base * (1 + margem/100)
+
+    st.write(f"Valor Base Estimado: R$ {valor_base:,.2f}")
+    st.write(f"Valor com Margem: R$ {valor_final:,.2f}")
