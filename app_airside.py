@@ -6,6 +6,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import sqlite3
 
+
 st.set_page_config(page_title="AirSide PRO", layout="wide")
 st.title("🌀 AirSide PRO - Sistema Profissional de Dimensionamento Elétrico")
 st.divider()
@@ -117,3 +118,68 @@ aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8 = st.tabs(
     ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais", "🎛️ Simulador",
      "👥 Clientes", "📁 Projetos", "💰 Orçamento"]
 )
+
+# =====================================================
+# ABA 1 - DADOS
+# =====================================================
+
+with aba1:
+    col1, col2 = st.columns(2)
+    cliente = col1.text_input("Nome do Cliente")
+    tecnico = col2.text_input("Nome do Técnico")
+
+    st.divider()
+    tipo_partida = st.selectbox(
+        "Tipo de Partida",
+        ["Inversor", "Direta", "Estrela-Triângulo", "Softstarter", "Somente Resistência"]
+    )
+    tensao = st.selectbox("Tensão (V)", [220, 380, 440])
+
+    if tipo_partida != "Somente Resistência":
+        vazao = st.number_input("Vazão (m³/h)", value=5000.0)
+        pressao = st.number_input("Pressão Total (Pa)", value=500.0)
+    else:
+        vazao = None
+        pressao = None
+
+    st.divider()
+    st.subheader("🔥 Resistência (Opcional)")
+    usar_resistencia = st.checkbox("Adicionar Resistência ao Sistema")
+    if usar_resistencia:
+        modo_res = st.radio(
+            "Modo de Cálculo",
+            ["Informar Potência Total", "Informar Quantidade"]
+        )
+        pot_unit = st.number_input("Potência Unitária (kW)", value=1.75)
+        if modo_res == "Informar Potência Total":
+            pot_total = st.number_input("Potência Total Desejada (kW)", value=10.5)
+        else:
+            qtd_res = st.number_input("Quantidade de Resistências", value=6)
+
+    calcular = st.button("🔎 Gerar Projeto", use_container_width=True)
+
+# =====================================================
+# PROCESSAMENTO
+# =====================================================
+
+if calcular:
+    motor_data = None
+    res_data = None
+    if tipo_partida != "Somente Resistência":
+        motor_data = calcular_motor(vazao, tensao, pressao)
+    if usar_resistencia:
+        if modo_res == "Informar Potência Total":
+            res_data = calcular_resistencia_por_potencia(pot_total, pot_unit, tensao)
+        else:
+            res_data = calcular_resistencia_por_quantidade(qtd_res, pot_unit, tensao)
+    st.session_state.update({
+        "cliente": cliente,
+        "tecnico": tecnico,
+        "tipo": tipo_partida,
+        "tensao": tensao,
+        "vazao": vazao,
+        "pressao": pressao,
+        "motor": motor_data,
+        "res": res_data,
+        "pot_unit": pot_unit if usar_resistencia else None
+    })
