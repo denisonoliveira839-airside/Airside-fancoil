@@ -12,6 +12,43 @@ st.divider()
 # =====================================================
 # FUNÇÕES DE CÁLCULO
 # =====================================================
+# =====================================================
+# BANCO DE DADOS
+# =====================================================
+
+def conectar():
+    return sqlite3.connect("airside.db")
+
+def criar_tabelas():
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS clientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT,
+        tecnico TEXT,
+        data TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS projetos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente TEXT,
+        tecnico TEXT,
+        tipo TEXT,
+        tensao INTEGER,
+        motor REAL,
+        corrente REAL,
+        data TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+criar_tabelas()
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
     potencia_kw *= 1.15
@@ -263,3 +300,101 @@ with aba5:
     ax.legend()
     ax.grid(True)
     st.pyplot(fig)
+# =====================================================
+# ABA 6 - CLIENTES
+# =====================================================
+with aba6:
+    st.subheader("Cadastro de Cliente")
+
+    nome_cli = st.text_input("Nome do Cliente")
+    tecnico_cli = st.text_input("Técnico Responsável")
+
+    if st.button("Salvar Cliente"):
+        conn = conectar()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO clientes (nome, tecnico, data) VALUES (?,?,?)",
+            (nome_cli, tecnico_cli, datetime.now().strftime("%d/%m/%Y"))
+        )
+        conn.commit()
+        conn.close()
+        st.success("Cliente salvo com sucesso!")
+
+    conn = conectar()
+    df_clientes = pd.read_sql("SELECT * FROM clientes", conn)
+    conn.close()
+
+    if not df_clientes.empty:
+        st.dataframe(df_clientes, use_container_width=True)
+      # =====================================================
+# ABA 7 - PROJETOS
+# =====================================================
+with aba7:
+    st.subheader("Projetos Salvos")
+
+    conn = conectar()
+    df_proj = pd.read_sql("SELECT * FROM projetos", conn)
+    conn.close()
+
+    if not df_proj.empty:
+        st.dataframe(df_proj, use_container_width=True)
+
+    if "motor" in st.session_state and st.session_state.motor:
+        if st.button("Salvar Projeto Atual"):
+            motor, corrente, _, _, _ = st.session_state.motor
+
+            conn = conectar()
+            c = conn.cursor()
+            c.execute("""
+                INSERT INTO projetos (cliente, tecnico, tipo, tensao, motor, corrente, data)
+                VALUES (?,?,?,?,?,?,?)
+            """, (
+                st.session_state.cliente,
+                st.session_state.tecnico,
+                st.session_state.tipo,
+                st.session_state.tensao,
+                motor,
+                corrente,
+                datetime.now().strftime("%d/%m/%Y")
+            ))
+            conn.commit()
+            conn.close()
+
+            st.success("Projeto salvo com sucesso!") 
+# =====================================================
+# ABA 8 - ORÇAMENTO
+# =====================================================
+with aba8:
+    st.subheader("💰 Orçamento Técnico")
+
+    margem = st.slider("Margem de Lucro (%)", 0, 100, 30)
+
+    total = 0
+    detalhamento = []
+
+    if "motor" in st.session_state and st.session_state.motor:
+        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.motor
+
+        valor_motor = motor * 750
+        detalhamento.append(("Motor", valor_motor))
+        total += valor_motor
+
+        if st.session_state.tipo == "Inversor":
+            valor_inv = motor * 900
+            detalhamento.append(("Inversor", valor_inv))
+            total += valor_inv
+
+    if "res" in st.session_state and st.session_state.res:
+        qtd, corrente_res, disj_res = st.session_state.res
+        valor_res = qtd * st.session_state.pot_unit * 120
+        detalhamento.append(("Resistências", valor_res))
+        total += valor_res
+
+    if total > 0:
+        df_orc = pd.DataFrame(detalhamento, columns=["Item", "Valor (R$)"])
+        st.dataframe(df_orc, use_container_width=True)
+
+        venda = total * (1 + margem/100)
+
+        st.metric("Custo Base", f"R$ {round(total,2)}")
+        st.metric("Preço de Venda", f"R$ {round(venda,2)}")
