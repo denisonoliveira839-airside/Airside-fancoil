@@ -4,14 +4,12 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
+import sqlite3
 
 st.set_page_config(page_title="AirSide PRO", layout="wide")
 st.title("🌀 AirSide PRO - Sistema Profissional de Dimensionamento Elétrico")
 st.divider()
 
-# =====================================================
-# FUNÇÕES DE CÁLCULO
-# =====================================================
 # =====================================================
 # BANCO DE DADOS
 # =====================================================
@@ -49,6 +47,11 @@ def criar_tabelas():
     conn.close()
 
 criar_tabelas()
+
+# =====================================================
+# FUNÇÕES DE CÁLCULO
+# =====================================================
+
 def calcular_motor(vazao, tensao, pressao_total=500, rendimento=0.65):
     potencia_kw = (vazao * pressao_total) / (rendimento * 3600000)
     potencia_kw *= 1.15
@@ -109,292 +112,8 @@ def multifilar_resistencia(tensao, qtd, pot_unit, corrente_total):
 # =====================================================
 # ABAS
 # =====================================================
-aba1, aba2, aba3, aba4, aba5 = st.tabs(
-    ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais", "🎛️ Simulador"]
+
+aba1, aba2, aba3, aba4, aba5, aba6, aba7, aba8 = st.tabs(
+    ["📋 Dados", "📊 Resultado", "📑 Multifilar", "📦 Materiais", "🎛️ Simulador",
+     "👥 Clientes", "📁 Projetos", "💰 Orçamento"]
 )
-
-# =====================================================
-# ABA 1 - DADOS
-# =====================================================
-with aba1:
-    col1, col2 = st.columns(2)
-    cliente = col1.text_input("Nome do Cliente")
-    tecnico = col2.text_input("Nome do Técnico")
-
-    st.divider()
-    tipo_partida = st.selectbox(
-        "Tipo de Partida",
-        ["Inversor", "Direta", "Estrela-Triângulo", "Softstarter", "Somente Resistência"]
-    )
-    tensao = st.selectbox("Tensão (V)", [220, 380, 440])
-
-    if tipo_partida != "Somente Resistência":
-        vazao = st.number_input("Vazão (m³/h)", value=5000.0)
-        pressao = st.number_input("Pressão Total (Pa)", value=500.0)
-    else:
-        vazao = None
-        pressao = None
-
-    st.divider()
-    st.subheader("🔥 Resistência (Opcional)")
-    usar_resistencia = st.checkbox("Adicionar Resistência ao Sistema")
-    if usar_resistencia:
-        modo_res = st.radio(
-            "Modo de Cálculo",
-            ["Informar Potência Total", "Informar Quantidade"]
-        )
-        pot_unit = st.number_input("Potência Unitária (kW)", value=1.75)
-        if modo_res == "Informar Potência Total":
-            pot_total = st.number_input("Potência Total Desejada (kW)", value=10.5)
-        else:
-            qtd_res = st.number_input("Quantidade de Resistências", value=6)
-
-    calcular = st.button("🔎 Gerar Projeto", use_container_width=True)
-
-# =====================================================
-# PROCESSAMENTO
-# =====================================================
-if calcular:
-    motor_data = None
-    res_data = None
-    if tipo_partida != "Somente Resistência":
-        motor_data = calcular_motor(vazao, tensao, pressao)
-    if usar_resistencia:
-        if modo_res == "Informar Potência Total":
-            res_data = calcular_resistencia_por_potencia(pot_total, pot_unit, tensao)
-        else:
-            res_data = calcular_resistencia_por_quantidade(qtd_res, pot_unit, tensao)
-    st.session_state.update({
-        "cliente": cliente,
-        "tecnico": tecnico,
-        "tipo": tipo_partida,
-        "tensao": tensao,
-        "vazao": vazao,
-        "pressao": pressao,
-        "motor": motor_data,
-        "res": res_data,
-        "pot_unit": pot_unit if usar_resistencia else None
-    })
-
-# =====================================================
-# ABA 2 - RESULTADO
-# =====================================================
-with aba2:
-    if "motor" in st.session_state and st.session_state.motor:
-        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.motor
-        col1, col2, col3, col4, col5 = st.columns(5)
-        col1.metric("Motor (CV)", motor)
-        col2.metric("Corrente (A)", corrente)
-        col3.metric("DJ Motor (A)", disj_motor)
-        col4.metric("DJ Geral (A)", disj_geral)
-        col5.metric("Cabo (mm²)", cabo)
-
-    if "res" in st.session_state and st.session_state.res:
-        qtd, corrente_res, disj_res = st.session_state.res
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Qtd Resistências", qtd)
-        col2.metric("Corrente Resistência (A)", corrente_res)
-        col3.metric("DJ Resistência (A)", disj_res)
-
-# =====================================================
-# ABA 3 - MULTIFILAR
-# =====================================================
-with aba3:
-    if "tipo" in st.session_state:
-        cabecalho = gerar_cabecalho(
-            st.session_state.cliente,
-            st.session_state.tecnico,
-            st.session_state.tensao,
-            st.session_state.tipo,
-            st.session_state.vazao,
-            st.session_state.pressao
-        )
-        texto = cabecalho
-        if st.session_state.motor:
-            motor, corrente, disj_motor, disj_geral, cabo = st.session_state.motor
-            texto += multifilar_motor(
-                st.session_state.tipo,
-                st.session_state.tensao,
-                motor,
-                disj_geral
-            )
-        if st.session_state.res:
-            qtd, corrente_res, disj_res = st.session_state.res
-            texto += multifilar_resistencia(
-                st.session_state.tensao,
-                qtd,
-                st.session_state.pot_unit,
-                corrente_res
-            )
-        st.code(texto, language="text")
-
-# =====================================================
-# ABA 4 - MATERIAIS
-# =====================================================
-with aba4:
-    lista = []
-    if "motor" in st.session_state and st.session_state.motor:
-        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.motor
-        lista.append(("Disjuntor Geral", f"{disj_geral}A", "1 un"))
-        lista.append(("Motor", f"{motor}CV", "1 un"))
-        if st.session_state.tipo == "Inversor":
-            lista.append(("Inversor", f"{motor}CV", "1 un"))
-        elif st.session_state.tipo == "Direta":
-            lista.append(("Contator", "AC-3", "1 un"))
-            lista.append(("Relé Térmico", "Compatível", "1 un"))
-        elif st.session_state.tipo == "Estrela-Triângulo":
-            lista.append(("3 Contatores", "AC-3", "3 un"))
-            lista.append(("Temporizador Y-Δ", "-", "1 un"))
-        elif st.session_state.tipo == "Softstarter":
-            lista.append(("Softstarter", f"{motor}CV", "1 un"))
-
-    if "res" in st.session_state and st.session_state.res:
-        qtd, corrente_res, disj_res = st.session_state.res
-        lista.append(("Resistência", f"{st.session_state.pot_unit} kW", f"{qtd} un"))
-        lista.append(("Disjuntor Resistência", f"{disj_res}A", "1 un"))
-
-    if lista:
-        df = pd.DataFrame(lista, columns=["Item", "Especificação", "Quantidade"])
-        st.dataframe(df, use_container_width=True)
-        st.download_button(
-            "⬇ Exportar Lista em CSV",
-            df.to_csv(index=False),
-            file_name="lista_materiais.csv",
-            mime="text/csv"
-        )
-
-# =====================================================
-# ABA 5 - SIMULADOR PRESSOSTATO / VENTILADOR
-# =====================================================
-with aba5:
-    st.subheader("💨 Simulação de Pressostatos e Ventilador")
-    filtro_sujo = st.slider("Nível de Sujidade do Filtro (%)", 0, 100, 0)
-    pressostato1_set = st.number_input("Pressostato 1 Atuação (%)", value=70)
-    pressostato2_set = st.number_input("Pressostato 2 Atuação (%)", value=90)
-
-    ventilador_ligado = filtro_sujo < pressostato1_set
-    pressostato1_ativo = filtro_sujo >= pressostato1_set
-    pressostato2_ativo = filtro_sujo >= pressostato2_set
-
-    st.markdown("### 🔹 Status Atual")
-    st.write(f"- Ventilador: {'🟢 Ligado' if ventilador_ligado else '🔴 Desligado'}")
-    st.write(f"- Pressostato 1: {'🔴 Desligado' if not pressostato1_ativo else '🟢 Ativo'}")
-    st.write(f"- Pressostato 2: {'🔴 Desligado' if not pressostato2_ativo else '🟢 Ativo'}")
-
-    if not ventilador_ligado:
-        st.warning("⚠️ Ventilador desligado devido à pressão alta no filtro!")
-
-    x = np.arange(0, 101, 1)
-    y1 = x >= pressostato1_set
-    y2 = x >= pressostato2_set
-    y_vent = x < pressostato1_set
-
-    fig, ax = plt.subplots()
-    ax.plot(x, y_vent, label="Ventilador Ligado", color="green")
-    ax.plot(x, y1, label="Pressostato 1 Ativo", color="orange")
-    ax.plot(x, y2, label="Pressostato 2 Ativo", color="red")
-    ax.set_xlabel("Sujidade do Filtro (%)")
-    ax.set_ylabel("Estado (0=Desligado, 1=Ativo)")
-    ax.set_yticks([0,1])
-    ax.set_yticklabels(["Desligado","Ativo"])
-    ax.legend()
-    ax.grid(True)
-    st.pyplot(fig)
-# =====================================================
-# ABA 6 - CLIENTES
-# =====================================================
-with aba6:
-    st.subheader("Cadastro de Cliente")
-
-    nome_cli = st.text_input("Nome do Cliente")
-    tecnico_cli = st.text_input("Técnico Responsável")
-
-    if st.button("Salvar Cliente"):
-        conn = conectar()
-        c = conn.cursor()
-        c.execute(
-            "INSERT INTO clientes (nome, tecnico, data) VALUES (?,?,?)",
-            (nome_cli, tecnico_cli, datetime.now().strftime("%d/%m/%Y"))
-        )
-        conn.commit()
-        conn.close()
-        st.success("Cliente salvo com sucesso!")
-
-    conn = conectar()
-    df_clientes = pd.read_sql("SELECT * FROM clientes", conn)
-    conn.close()
-
-    if not df_clientes.empty:
-        st.dataframe(df_clientes, use_container_width=True)
-      # =====================================================
-# ABA 7 - PROJETOS
-# =====================================================
-with aba7:
-    st.subheader("Projetos Salvos")
-
-    conn = conectar()
-    df_proj = pd.read_sql("SELECT * FROM projetos", conn)
-    conn.close()
-
-    if not df_proj.empty:
-        st.dataframe(df_proj, use_container_width=True)
-
-    if "motor" in st.session_state and st.session_state.motor:
-        if st.button("Salvar Projeto Atual"):
-            motor, corrente, _, _, _ = st.session_state.motor
-
-            conn = conectar()
-            c = conn.cursor()
-            c.execute("""
-                INSERT INTO projetos (cliente, tecnico, tipo, tensao, motor, corrente, data)
-                VALUES (?,?,?,?,?,?,?)
-            """, (
-                st.session_state.cliente,
-                st.session_state.tecnico,
-                st.session_state.tipo,
-                st.session_state.tensao,
-                motor,
-                corrente,
-                datetime.now().strftime("%d/%m/%Y")
-            ))
-            conn.commit()
-            conn.close()
-
-            st.success("Projeto salvo com sucesso!") 
-# =====================================================
-# ABA 8 - ORÇAMENTO
-# =====================================================
-with aba8:
-    st.subheader("💰 Orçamento Técnico")
-
-    margem = st.slider("Margem de Lucro (%)", 0, 100, 30)
-
-    total = 0
-    detalhamento = []
-
-    if "motor" in st.session_state and st.session_state.motor:
-        motor, corrente, disj_motor, disj_geral, cabo = st.session_state.motor
-
-        valor_motor = motor * 750
-        detalhamento.append(("Motor", valor_motor))
-        total += valor_motor
-
-        if st.session_state.tipo == "Inversor":
-            valor_inv = motor * 900
-            detalhamento.append(("Inversor", valor_inv))
-            total += valor_inv
-
-    if "res" in st.session_state and st.session_state.res:
-        qtd, corrente_res, disj_res = st.session_state.res
-        valor_res = qtd * st.session_state.pot_unit * 120
-        detalhamento.append(("Resistências", valor_res))
-        total += valor_res
-
-    if total > 0:
-        df_orc = pd.DataFrame(detalhamento, columns=["Item", "Valor (R$)"])
-        st.dataframe(df_orc, use_container_width=True)
-
-        venda = total * (1 + margem/100)
-
-        st.metric("Custo Base", f"R$ {round(total,2)}")
-        st.metric("Preço de Venda", f"R$ {round(venda,2)}")
